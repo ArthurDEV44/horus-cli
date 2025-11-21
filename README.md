@@ -6,7 +6,8 @@ Un outil CLI d'IA conversationnelle alimenté par Horus avec des capacités d'é
 
 ## Fonctionnalités
 
-- **🤖 IA Conversationnelle** : Interface en langage naturel alimentée par Horus-3
+- **🤖 IA Conversationnelle** : Interface en langage naturel alimentée par Devstral:24b (Mistral AI)
+- **🌐 Support Multilingue** : Répond automatiquement en français, anglais, espagnol, allemand, italien, etc.
 - **📝 Opérations de Fichiers Intelligentes** : L'IA utilise automatiquement des outils pour afficher, créer et modifier des fichiers
 - **⚡ Intégration Bash** : Exécuter des commandes shell via une conversation naturelle
 - **🔧 Sélection Automatique d'Outils** : L'IA choisit intelligemment les bons outils pour vos demandes
@@ -194,6 +195,27 @@ Cela signifie que vous pouvez avoir différents modèles pour différents projet
 ```
 
 ## Utilisation
+
+### 🌐 Support Multilingue
+
+Horus CLI détecte automatiquement votre langue et répond dans cette langue ! Posez simplement votre première question dans votre langue préférée.
+
+**Exemples** :
+```bash
+# En français
+horus
+> Peux-tu m'expliquer ce que fait ce projet ?
+
+# In English
+horus
+> Can you explain what this project does?
+
+# En español
+horus
+> ¿Puedes explicarme qué hace este proyecto?
+```
+
+Le modèle **Devstral:24b** de Mistral AI supporte nativement le français, l'anglais, l'espagnol, l'allemand, l'italien et bien plus. Voir [MULTILINGUAL.md](./MULTILINGUAL.md) pour plus de détails.
 
 ### Mode Interactif
 
@@ -399,6 +421,112 @@ horus mcp remove server-name
 - **stdio** : Exécuter le serveur MCP comme sous-processus (le plus courant)
 - **http** : Se connecter à un serveur MCP basé sur HTTP
 - **sse** : Se connecter via Server-Sent Events
+
+## Gestion du Contexte et Télémétrie
+
+Horus CLI inclut un système de télémétrie intégré pour surveiller et optimiser les opérations de contexte (recherche, visualisation, édition, création). Ce système vous aide à comprendre la consommation de tokens et les performances de votre assistant IA.
+
+### Commandes Disponibles
+
+#### Afficher le statut de la télémétrie
+```bash
+# Afficher un résumé des opérations récentes
+horus context status
+
+# Afficher les 20 dernières opérations
+horus context status --last 20
+
+# Sortie au format JSON
+horus context status --json
+```
+
+#### Exporter les données de télémétrie
+```bash
+# Exporter vers le fichier par défaut (telemetry-export.json)
+horus context export
+
+# Exporter vers un fichier spécifique
+horus context export benchmarks/baseline.json
+```
+
+#### Afficher les statistiques détaillées
+```bash
+# Statistiques complètes avec analyse
+horus context stats
+
+# Format JSON pour le traitement
+horus context stats --json
+```
+
+#### Effacer les données de télémétrie
+```bash
+# Effacer avec confirmation
+horus context clear
+
+# Effacer sans confirmation
+horus context clear --yes
+```
+
+### Mode Debug
+
+Activez le logging de télémétrie détaillé pour suivre chaque opération en temps réel :
+
+```bash
+# Via le flag CLI
+horus --context-debug
+
+# Via variable d'environnement
+export HORUS_CONTEXT_DEBUG=true
+horus
+```
+
+En mode debug, chaque opération de contexte sera loggée dans stderr :
+```
+[CONTEXT] 🔍 search | 150ms | ~2500 tokens
+[CONTEXT] 👁️ view | 45ms | ~1200 tokens | 💾 cache hit
+[CONTEXT] ✏️ edit | 230ms | ~3100 tokens
+```
+
+### Métriques Suivies
+
+Le système de télémétrie enregistre :
+
+- **Opérations** : search, view, edit, create
+- **Durée** : Temps d'exécution de chaque opération (ms)
+- **Tokens estimés** : Nombre de tokens consommés
+- **Fichiers scannés/matchés** : Pour les opérations de recherche
+- **Taux de cache hit** : Performance du cache (si applicable)
+- **Stratégies** : Méthode utilisée (agentic-search, full-view, str-replace, etc.)
+
+### Cas d'Utilisation
+
+**Benchmarking et Optimisation** :
+```bash
+# Capturer une baseline avant optimisation
+horus context export benchmarks/baseline.json
+
+# Après modifications, comparer les performances
+horus context export benchmarks/after-optimization.json
+horus context stats
+```
+
+**Monitoring en Production** :
+```bash
+# Activer le debug pour une session spécifique
+horus --context-debug --prompt "analyze this codebase"
+
+# Exporter les métriques pour analyse
+horus context export logs/session-$(date +%Y%m%d-%H%M%S).json
+```
+
+**Analyse de la Consommation de Tokens** :
+```bash
+# Voir les statistiques détaillées
+horus context stats
+
+# Identifier les opérations gourmandes en tokens
+horus context status --last 50 | grep "tokens"
+```
 
 ## Développement
 

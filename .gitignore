@@ -103,3 +103,10 @@ temp/
 
 # Coding agents
 .claude/
+
+# Claude
+CLAUDE.md
+
+# Gemini
+.gemini/
+GEMINI.md
