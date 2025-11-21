@@ -210,16 +210,28 @@ export function useInputHandler({
   });
 
   // Hook up the actual input handling with error boundary
+  // In Ink 6.x, useInput needs isActive option - always active to allow Ctrl+C
   useInput((inputChar: string, key: Key) => {
     try {
       handleInput(inputChar, key);
     } catch (error: any) {
-      // Silently ignore EPERM errors from stdin in WSL2
-      if (error.code !== 'EPERM' && error.syscall !== 'read') {
-        throw error;
+      // Debug mode
+      if (process.env.DEBUG) {
+        console.error('DEBUG - useInput error:', error);
       }
+
+      // Silently ignore EPERM errors from stdin in WSL2
+      if (error.code === 'EPERM' && error.syscall === 'read') {
+        if (process.env.DEBUG) {
+          console.error('DEBUG - EPERM error ignored in useInput');
+        }
+        return; // Don't rethrow, just return
+      }
+
+      // Rethrow other errors
+      throw error;
     }
-  });
+  }, { isActive: true });
 
   // Update command suggestions when input changes
   useEffect(() => {
