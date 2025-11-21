@@ -8,6 +8,7 @@ import ModernChatInterface from "./ui/components/modern-chat-interface.js";
 import { getSettingsManager } from "./utils/settings-manager.js";
 import { ConfirmationService } from "./utils/confirmation-service.js";
 import { createMCPCommand } from "./commands/mcp.js";
+import { createContextCommand } from "./commands/context.js";
 import type { ChatCompletionMessageParam } from "openai/resources/chat";
 
 // Load environment variables
@@ -402,7 +403,15 @@ program
     "maximum number of tool execution rounds (default: 400)",
     "400"
   )
+  .option(
+    "--context-debug",
+    "enable context telemetry debug logging (sets HORUS_CONTEXT_DEBUG=true)"
+  )
   .action(async (message, options) => {
+    // Enable context debug mode if flag is set
+    if (options.contextDebug) {
+      process.env.HORUS_CONTEXT_DEBUG = "true";
+    }
     if (options.directory) {
       try {
         process.chdir(options.directory);
@@ -517,5 +526,8 @@ gitCommand
 
 // MCP command
 program.addCommand(createMCPCommand());
+
+// Context command
+program.addCommand(createContextCommand());
 
 program.parse();

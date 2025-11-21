@@ -1,5 +1,7 @@
 import { ToolResult } from "../types/index.js";
 import { ConfirmationService } from "../utils/confirmation-service.js";
+import { ContextTelemetry } from "../utils/context-telemetry.js";
+import { createTokenCounter } from "../utils/token-counter.js";
 import * as fs from "fs-extra";
 import * as path from "path";
 
@@ -49,6 +51,9 @@ export class SearchTool {
       includeHidden?: boolean;
     } = {}
   ): Promise<ToolResult> {
+    const telemetry = ContextTelemetry.getInstance();
+    const startTime = Date.now();
+
     try {
       const searchType = options.searchType || "both";
       const results: UnifiedSearchResult[] = [];
@@ -81,10 +86,26 @@ export class SearchTool {
       }
 
       if (results.length === 0) {
-        return {
+        const result: ToolResult = {
           success: true,
           output: `No results found for "${query}"`,
         };
+
+        // Record telemetry
+        const tokenCounter = createTokenCounter();
+        telemetry.recordMetric({
+          operation: 'search',
+          timestamp: startTime,
+          duration: Date.now() - startTime,
+          filesScanned: 0,
+          filesMatched: 0,
+          tokensEstimated: tokenCounter.countTokens(result.output),
+          pattern: query,
+          strategy: 'agentic-search',
+        });
+        tokenCounter.dispose();
+
+        return result;
       }
 
       const formattedOutput = this.formatUnifiedResults(
@@ -93,11 +114,40 @@ export class SearchTool {
         searchType
       );
 
-      return {
+      const result: ToolResult = {
         success: true,
         output: formattedOutput,
       };
+
+      // Record telemetry
+      const uniqueFiles = new Set(results.map(r => r.file));
+      const tokenCounter = createTokenCounter();
+      telemetry.recordMetric({
+        operation: 'search',
+        timestamp: startTime,
+        duration: Date.now() - startTime,
+        filesScanned: uniqueFiles.size,
+        filesMatched: uniqueFiles.size,
+        tokensEstimated: tokenCounter.countTokens(formattedOutput),
+        pattern: query,
+        strategy: 'agentic-search',
+      });
+      tokenCounter.dispose();
+
+      return result;
     } catch (error: any) {
+      // Record telemetry even on error
+      telemetry.recordMetric({
+        operation: 'search',
+        timestamp: startTime,
+        duration: Date.now() - startTime,
+        filesScanned: 0,
+        filesMatched: 0,
+        tokensEstimated: 0,
+        pattern: query,
+        strategy: 'agentic-search',
+      });
+
       return {
         success: false,
         error: `Search error: ${error.message}`,

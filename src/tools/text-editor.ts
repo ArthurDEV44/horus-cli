@@ -1,12 +1,15 @@
-import * as fs from "fs-extra";
+import fs from "fs-extra";
 import * as path from "path";
 import { writeFile as writeFilePromise } from "fs/promises";
 import { ToolResult, EditorCommand } from "../types/index.js";
 import { ConfirmationService } from "../utils/confirmation-service.js";
+import { ContextTelemetry } from "../utils/context-telemetry.js";
+import { createTokenCounter } from "../utils/token-counter.js";
 
 export class TextEditorTool {
   private editHistory: EditorCommand[] = [];
   private confirmationService = ConfirmationService.getInstance();
+  private telemetry = ContextTelemetry.getInstance();
 
   // Directories and files to exclude from listings
   private readonly EXCLUDED_DIRS = [
@@ -47,6 +50,9 @@ export class TextEditorTool {
     filePath: string,
     viewRange?: [number, number]
   ): Promise<ToolResult> {
+    const startTime = Date.now();
+    const tokenCounter = createTokenCounter();
+
     try {
       const resolvedPath = path.resolve(filePath);
 
@@ -90,6 +96,18 @@ export class TextEditorTool {
             output += `\n\nℹ️  Excluded directories: ${excludedDirsFound.join(', ')}`;
           }
 
+          // Record telemetry for directory listing
+          this.telemetry.recordMetric({
+            operation: 'view',
+            timestamp: startTime,
+            duration: Date.now() - startTime,
+            filesRead: 0,
+            tokensEstimated: tokenCounter.countTokens(output),
+            filePath: resolvedPath,
+            strategy: 'directory-listing',
+          });
+          tokenCounter.dispose();
+
           return {
             success: true,
             output,
@@ -106,9 +124,23 @@ export class TextEditorTool {
             .map((line, idx) => `${start + idx}: ${line}`)
             .join("\n");
 
+          const output = `Lines ${start}-${end} of ${filePath}:\n${numberedLines}`;
+
+          // Record telemetry
+          this.telemetry.recordMetric({
+            operation: 'view',
+            timestamp: startTime,
+            duration: Date.now() - startTime,
+            filesRead: 1,
+            tokensEstimated: tokenCounter.countTokens(output),
+            filePath: resolvedPath,
+            strategy: 'range-view',
+          });
+          tokenCounter.dispose();
+
           return {
             success: true,
-            output: `Lines ${start}-${end} of ${filePath}:\n${numberedLines}`,
+            output,
           };
         }
 
@@ -119,23 +151,61 @@ export class TextEditorTool {
         const numberedLines = displayLines
           .map((line, idx) => `${idx + 1}: ${line}`)
           .join("\n");
-        
+
         let additionalLinesMessage = "";
         if (totalLines > maxDefaultLines) {
           additionalLinesMessage = `\n... +${totalLines - maxDefaultLines} more lines (use view_file with start_line and end_line to see more)`;
         }
 
+        const output = `Contents of ${filePath} (${totalLines} line${totalLines !== 1 ? 's' : ''}):\n${numberedLines}${additionalLinesMessage}`;
+
+        // Record telemetry
+        this.telemetry.recordMetric({
+          operation: 'view',
+          timestamp: startTime,
+          duration: Date.now() - startTime,
+          filesRead: 1,
+          tokensEstimated: tokenCounter.countTokens(output),
+          filePath: resolvedPath,
+          strategy: 'full-view',
+        });
+        tokenCounter.dispose();
+
         return {
           success: true,
-          output: `Contents of ${filePath} (${totalLines} line${totalLines !== 1 ? 's' : ''}):\n${numberedLines}${additionalLinesMessage}`,
+          output,
         };
       } else {
+        // File not found
+        this.telemetry.recordMetric({
+          operation: 'view',
+          timestamp: startTime,
+          duration: Date.now() - startTime,
+          filesRead: 0,
+          tokensEstimated: 0,
+          filePath,
+          strategy: 'not-found',
+        });
+        tokenCounter.dispose();
+
         return {
           success: false,
           error: `File or directory not found: ${filePath}`,
         };
       }
     } catch (error: any) {
+      // Record telemetry even on error
+      this.telemetry.recordMetric({
+        operation: 'view',
+        timestamp: startTime,
+        duration: Date.now() - startTime,
+        filesRead: 0,
+        tokensEstimated: 0,
+        filePath,
+        strategy: 'error',
+      });
+      tokenCounter.dispose();
+
       return {
         success: false,
         error: `Error viewing ${filePath}: ${error.message}`,
@@ -149,10 +219,24 @@ export class TextEditorTool {
     newStr: string,
     replaceAll: boolean = false
   ): Promise<ToolResult> {
+    const startTime = Date.now();
+    const tokenCounter = createTokenCounter();
+
     try {
       const resolvedPath = path.resolve(filePath);
 
       if (!(await fs.pathExists(resolvedPath))) {
+        this.telemetry.recordMetric({
+          operation: 'edit',
+          timestamp: startTime,
+          duration: Date.now() - startTime,
+          filesRead: 0,
+          tokensEstimated: 0,
+          filePath,
+          strategy: 'str-replace-not-found',
+        });
+        tokenCounter.dispose();
+
         return {
           success: false,
           error: `File not found: ${filePath}`,
@@ -180,6 +264,17 @@ export class TextEditorTool {
                 }
               }
             }
+            this.telemetry.recordMetric({
+              operation: 'edit',
+              timestamp: startTime,
+              duration: Date.now() - startTime,
+              filesRead: 1,
+              tokensEstimated: 0,
+              filePath: resolvedPath,
+              strategy: 'str-replace-not-found',
+            });
+            tokenCounter.dispose();
+
             return {
               success: false,
               error: `String not found in file. For multi-line replacements, use replace_lines tool instead.${suggestion}`,
@@ -195,6 +290,18 @@ export class TextEditorTool {
               break;
             }
           }
+
+          this.telemetry.recordMetric({
+            operation: 'edit',
+            timestamp: startTime,
+            duration: Date.now() - startTime,
+            filesRead: 1,
+            tokensEstimated: 0,
+            filePath: resolvedPath,
+            strategy: 'str-replace-not-found',
+          });
+          tokenCounter.dispose();
+
           return {
             success: false,
             error: `String not found in file: "${oldStr}". If the text format differs slightly, use replace_lines tool instead.${suggestion}`,
@@ -248,11 +355,35 @@ export class TextEditorTool {
       const newLines = newContent.split("\n");
       const diff = this.generateDiff(oldLines, newLines, filePath);
 
+      // Record telemetry on success
+      this.telemetry.recordMetric({
+        operation: 'edit',
+        timestamp: startTime,
+        duration: Date.now() - startTime,
+        filesRead: 1,
+        tokensEstimated: tokenCounter.countTokens(diff),
+        filePath: resolvedPath,
+        strategy: 'str-replace',
+      });
+      tokenCounter.dispose();
+
       return {
         success: true,
         output: diff,
       };
     } catch (error: any) {
+      // Record telemetry on error
+      this.telemetry.recordMetric({
+        operation: 'edit',
+        timestamp: startTime,
+        duration: Date.now() - startTime,
+        filesRead: 0,
+        tokensEstimated: 0,
+        filePath,
+        strategy: 'str-replace-error',
+      });
+      tokenCounter.dispose();
+
       return {
         success: false,
         error: `Error replacing text in ${filePath}: ${error.message}`,
@@ -261,6 +392,9 @@ export class TextEditorTool {
   }
 
   async create(filePath: string, content: string): Promise<ToolResult> {
+    const startTime = Date.now();
+    const tokenCounter = createTokenCounter();
+
     try {
       const resolvedPath = path.resolve(filePath);
 
@@ -312,11 +446,35 @@ export class TextEditorTool {
       const newLines = content.split("\n");
       const diff = this.generateDiff(oldLines, newLines, filePath);
 
+      // Record telemetry on success
+      this.telemetry.recordMetric({
+        operation: 'create',
+        timestamp: startTime,
+        duration: Date.now() - startTime,
+        filesRead: 0,
+        tokensEstimated: tokenCounter.countTokens(diff),
+        filePath: resolvedPath,
+        strategy: 'create-file',
+      });
+      tokenCounter.dispose();
+
       return {
         success: true,
         output: diff,
       };
     } catch (error: any) {
+      // Record telemetry on error
+      this.telemetry.recordMetric({
+        operation: 'create',
+        timestamp: startTime,
+        duration: Date.now() - startTime,
+        filesRead: 0,
+        tokensEstimated: 0,
+        filePath,
+        strategy: 'create-error',
+      });
+      tokenCounter.dispose();
+
       return {
         success: false,
         error: `Error creating ${filePath}: ${error.message}`,
@@ -330,10 +488,24 @@ export class TextEditorTool {
     endLine: number,
     newContent: string
   ): Promise<ToolResult> {
+    const startTime = Date.now();
+    const tokenCounter = createTokenCounter();
+
     try {
       const resolvedPath = path.resolve(filePath);
 
       if (!(await fs.pathExists(resolvedPath))) {
+        this.telemetry.recordMetric({
+          operation: 'edit',
+          timestamp: startTime,
+          duration: Date.now() - startTime,
+          filesRead: 0,
+          tokensEstimated: 0,
+          filePath,
+          strategy: 'replace-lines-not-found',
+        });
+        tokenCounter.dispose();
+
         return {
           success: false,
           error: `File not found: ${filePath}`,
@@ -342,15 +514,37 @@ export class TextEditorTool {
 
       const fileContent = await fs.readFile(resolvedPath, "utf-8");
       const lines = fileContent.split("\n");
-      
+
       if (startLine < 1 || startLine > lines.length) {
+        this.telemetry.recordMetric({
+          operation: 'edit',
+          timestamp: startTime,
+          duration: Date.now() - startTime,
+          filesRead: 1,
+          tokensEstimated: 0,
+          filePath: resolvedPath,
+          strategy: 'replace-lines-invalid-range',
+        });
+        tokenCounter.dispose();
+
         return {
           success: false,
           error: `Invalid start line: ${startLine}. File has ${lines.length} lines.`,
         };
       }
-      
+
       if (endLine < startLine || endLine > lines.length) {
+        this.telemetry.recordMetric({
+          operation: 'edit',
+          timestamp: startTime,
+          duration: Date.now() - startTime,
+          filesRead: 1,
+          tokensEstimated: 0,
+          filePath: resolvedPath,
+          strategy: 'replace-lines-invalid-range',
+        });
+        tokenCounter.dispose();
+
         return {
           success: false,
           error: `Invalid end line: ${endLine}. Must be between ${startLine} and ${lines.length}.`,
@@ -400,11 +594,35 @@ export class TextEditorTool {
       const oldLines = fileContent.split("\n");
       const diff = this.generateDiff(oldLines, lines, filePath);
 
+      // Record telemetry on success
+      this.telemetry.recordMetric({
+        operation: 'edit',
+        timestamp: startTime,
+        duration: Date.now() - startTime,
+        filesRead: 1,
+        tokensEstimated: tokenCounter.countTokens(diff),
+        filePath: resolvedPath,
+        strategy: 'replace-lines',
+      });
+      tokenCounter.dispose();
+
       return {
         success: true,
         output: diff,
       };
     } catch (error: any) {
+      // Record telemetry on error
+      this.telemetry.recordMetric({
+        operation: 'edit',
+        timestamp: startTime,
+        duration: Date.now() - startTime,
+        filesRead: 0,
+        tokensEstimated: 0,
+        filePath,
+        strategy: 'replace-lines-error',
+      });
+      tokenCounter.dispose();
+
       return {
         success: false,
         error: `Error replacing lines in ${filePath}: ${error.message}`,
