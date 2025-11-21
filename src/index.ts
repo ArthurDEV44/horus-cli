@@ -29,17 +29,23 @@ function ensureStdinReady(): void {
     // Set encoding
     process.stdin.setEncoding('utf8');
 
-    // Remove all existing listeners to avoid conflicts
+    // Remove all existing listeners to avoid conflicts with Ink
     process.stdin.removeAllListeners('data');
     process.stdin.removeAllListeners('error');
+    process.stdin.removeAllListeners('keypress');
 
-    // Add error handler for stdin
+    // Add error handler for stdin that won't interfere with Ink
     process.stdin.on('error', (error: any) => {
       if (error.code === 'EPERM' || error.code === 'EBADF') {
         // Silently ignore these errors in WSL2
+        if (process.env.DEBUG) {
+          console.error('DEBUG - Stdin error ignored:', error.code);
+        }
         return;
       }
-      console.error('Stdin error:', error);
+      if (process.env.DEBUG) {
+        console.error('Stdin error:', error);
+      }
     });
 
     // Resume stdin if it's paused
@@ -47,11 +53,8 @@ function ensureStdinReady(): void {
       process.stdin.resume();
     }
 
-    // Test raw mode capability
-    if (process.stdin.setRawMode) {
-      process.stdin.setRawMode(true);
-      // Important: let Ink manage raw mode, don't turn it off here
-    }
+    // DO NOT set raw mode here - let Ink handle it completely
+    // Setting raw mode here causes issues in WSL2
   } catch (error: any) {
     // In WSL2, we might get EPERM errors that we can safely ignore
     if (error.code !== 'EPERM' && error.code !== 'EBADF') {
@@ -78,9 +81,23 @@ process.on("SIGTERM", () => {
 
 // Handle uncaught exceptions to prevent hanging
 process.on("uncaughtException", (error: any) => {
+  // Debug mode - show all errors if DEBUG env is set
+  if (process.env.DEBUG) {
+    console.error("DEBUG - Uncaught exception:", error);
+    console.error("DEBUG - Error details:", {
+      code: error.code,
+      syscall: error.syscall,
+      fd: error.fd,
+      errno: error.errno
+    });
+  }
+
   // Silently ignore EPERM errors from stdin read operations in WSL2
   if (error.code === 'EPERM' && error.syscall === 'read' && error.fd === 0) {
     // This is a known issue with WSL2 and Ink - ignore it
+    if (process.env.DEBUG) {
+      console.error("DEBUG - EPERM error ignored");
+    }
     return;
   }
 
@@ -429,14 +446,12 @@ program
 
       ensureUserSettingsDirectory();
 
-      // Ensure stdin is ready before launching interactive UI
-      ensureStdinReady();
-
       // Support variadic positional arguments for multi-word initial message
       const initialMessage = Array.isArray(message)
         ? message.join(" ")
         : message;
 
+      // Render with simple call - Ink 6.x handles WSL2 properly
       render(React.createElement(ModernChatInterface, { agent, initialMessage }));
     } catch (error: any) {
       console.error("❌ Error initializing Horus CLI:", error.message);

@@ -103,6 +103,14 @@ export function useEnhancedInput({
   }, [input, addToHistory, onSubmit, clearInput]);
 
   const handleInput = useCallback((inputChar: string, key: Key) => {
+    if (process.env.DEBUG) {
+      console.error('DEBUG - handleInput called:', {
+        inputChar: JSON.stringify(inputChar),
+        keyName: key.name,
+        disabled
+      });
+    }
+
     if (disabled) return;
 
     // Handle Ctrl+C - check multiple ways it could be detected
