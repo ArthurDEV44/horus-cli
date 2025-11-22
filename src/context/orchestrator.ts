@@ -181,7 +181,22 @@ export class ContextOrchestrator {
 
     // Search for files matching keywords
     if (keywords.length > 0 && tokensUsed < tokenBudget) {
-      const searchQuery = keywords.join(' ');
+      // Filter out action verbs and keep only technical terms
+      const technicalKeywords = keywords.filter(kw => {
+        // Remove common action words and pronouns in French/English
+        const actionWords = ['explique', 'expliquer', 'explain', 'show', 'tell', 'find', 'search',
+                             'trouver', 'chercher', 'voir', 'comment', 'pourquoi', 'quoi',
+                             'moi', 'me', 'toi', 'you'];
+        return !actionWords.includes(kw.toLowerCase());
+      });
+
+      // Use technical keywords if available, otherwise use all keywords
+      const searchKeywords = technicalKeywords.length > 0 ? technicalKeywords : keywords;
+      const searchQuery = searchKeywords.join(' ');
+
+      if (this.debug) {
+        console.error('[ContextOrchestrator] Search query:', searchQuery);
+      }
 
       try {
         const searchResult = await this.searchTool.search(searchQuery, {
@@ -385,7 +400,7 @@ export class ContextOrchestrator {
 
     const words = query
       .toLowerCase()
-      .replace(/[^\w\s-]/g, ' ') // Remove punctuation except hyphens
+      .replace(/[^\w\s]/g, ' ') // Remove all punctuation including hyphens
       .split(/\s+/)
       .filter((word) => word.length > 2 && !stopWords.has(word));
 
@@ -404,11 +419,16 @@ export class ContextOrchestrator {
       const trimmed = line.trim();
       if (!trimmed) continue;
 
+      // Skip header lines
+      if (trimmed.startsWith('Search results for')) continue;
+      if (trimmed.startsWith('Found:') && !trimmed.includes('.')) continue;
+
       // Try to extract file path from different formats
       // Format 1: "path/to/file.ts" (file search result)
-      // Format 2: "path/to/file.ts:123:content" (text search result with line number)
-      // Format 3: "Found: path/to/file.ts"
-      // Format 4: JSON-like: {"type":"text","file":"path/to/file.ts",...}
+      // Format 2: "path/to/file.ts (N matches)" (SearchTool format)
+      // Format 3: "path/to/file.ts:123:content" (text search result with line number)
+      // Format 4: "Found: path/to/file.ts"
+      // Format 5: JSON-like: {"type":"text","file":"path/to/file.ts",...}
 
       // First, try to parse as JSON (SearchTool returns JSON for unified results)
       try {
@@ -425,6 +445,13 @@ export class ContextOrchestrator {
         // Not JSON, continue with other formats
       }
 
+      // Format: "path/to/file.ts (N matches)" - remove the (N matches) part
+      const matchesPattern = trimmed.match(/^([^\s(]+\.(ts|js|tsx|jsx|py|go|java|c|cpp|h|rs|rb|php|md|json|yaml|yml|toml|sh))\s*(?:\(\d+\s+matches?\))?/i);
+      if (matchesPattern) {
+        filePathsSet.add(matchesPattern[1]);
+        continue;
+      }
+
       // Format: "file:line:column:text" or "file:line:text" (ripgrep format)
       const ripgrepMatch = trimmed.match(/^([^:]+\.(ts|js|tsx|jsx|py|go|java|c|cpp|h|rs|rb|php|md|json|yaml|yml|toml|sh)):/i);
       if (ripgrepMatch) {
@@ -433,15 +460,17 @@ export class ContextOrchestrator {
       }
 
       // Simple heuristic: look for file-like paths
-      const pathMatch = trimmed.match(/(?:^|\s)([^\s:]+\.(ts|js|tsx|jsx|py|go|java|c|cpp|h|rs|rb|php|md|json|yaml|yml|toml|sh))/i);
+      const pathMatch = trimmed.match(/^([^\s:]+\.(ts|js|tsx|jsx|py|go|java|c|cpp|h|rs|rb|php|md|json|yaml|yml|toml|sh))$/i);
       if (pathMatch) {
         filePathsSet.add(pathMatch[1]);
         continue;
       }
 
-      // Fallback: if line contains a path separator, might be a path
-      if (trimmed.includes('/') && !trimmed.includes(' ')) {
-        filePathsSet.add(trimmed);
+      // Fallback: if line contains a path separator and ends with extension
+      if (trimmed.includes('/') && /\.(ts|js|tsx|jsx|py|go|java|c|cpp|h|rs|rb|php|md|json|yaml|yml|toml|sh)$/i.test(trimmed)) {
+        // Remove everything after the extension
+        const cleanPath = trimmed.replace(/\s.*$/, '');
+        filePathsSet.add(cleanPath);
       }
     }
 
@@ -464,6 +493,7 @@ export class ContextOrchestrator {
       lowerQuery.includes('describe') ||
       lowerQuery.includes('document') ||
       lowerQuery.includes('expliquer') ||
+      lowerQuery.includes('explique') ||
       lowerQuery.includes("qu'est-ce") ||
       lowerQuery.includes('comment fonctionne')
     ) {

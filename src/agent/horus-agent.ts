@@ -582,6 +582,53 @@ FINAL REMINDER: Always match the user's language. French question → French ans
       tokenCount: inputTokens,
     };
 
+    // GATHER PHASE: Context orchestration (if enabled)
+    if (this.contextOrchestrator) {
+      try {
+        const maxContext = getModelMaxContext(this.currentModel);
+        const historyTokens = this.tokenCounter.countTokens(
+          JSON.stringify(this.messages)
+        );
+
+        const contextRequest: ContextRequest = {
+          intent: this.contextOrchestrator.detectIntent(message),
+          query: message,
+          currentContext: this.chatHistory,
+          budget: {
+            maxTokens: maxContext,
+            reservedForContext: 0.3,
+            usedByHistory: historyTokens,
+            available: Math.max(0, Math.floor(maxContext * 0.3) - historyTokens),
+          },
+        };
+
+        if (process.env.HORUS_CONTEXT_DEBUG === 'true') {
+          console.error('[HorusAgent] Gathering context with request:', {
+            intent: contextRequest.intent,
+            budget: contextRequest.budget,
+          });
+        }
+
+        const contextBundle = await this.contextOrchestrator.gather(contextRequest);
+
+        // Inject context bundle into chat history
+        if (contextBundle.sources.length > 0) {
+          this.injectContextBundle(contextBundle);
+
+          if (process.env.HORUS_CONTEXT_DEBUG === 'true') {
+            console.error('[HorusAgent] Context injected:', {
+              sources: contextBundle.sources.length,
+              tokens: contextBundle.metadata.tokensUsed,
+              cacheHits: contextBundle.metadata.cacheHits,
+            });
+          }
+        }
+      } catch (error) {
+        console.error('[HorusAgent] Context gathering failed:', error);
+        // Continue without context optimization
+      }
+    }
+
     const maxToolRounds = this.maxToolRounds; // Prevent infinite loops
     let toolRounds = 0;
     let totalOutputTokens = 0;

@@ -2,7 +2,7 @@ import { ToolResult } from "../types/index.js";
 import { ConfirmationService } from "../utils/confirmation-service.js";
 import { ContextTelemetry } from "../utils/context-telemetry.js";
 import { createTokenCounter } from "../utils/token-counter.js";
-import * as fs from "fs-extra";
+import fs from "fs-extra";
 import * as path from "path";
 
 export interface SearchResult {
