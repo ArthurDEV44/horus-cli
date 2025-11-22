@@ -264,19 +264,30 @@ FINAL REMINDER: Always match the user's language. French question → French ans
           throw new Error("No response from Horus");
         }
 
+        // Fallback: Check if content contains raw JSON tool calls (for models that don't support tool_calls)
+        let finalToolCalls = assistantMessage.tool_calls;
+        let finalContent = assistantMessage.content;
+
+        if (!finalToolCalls && assistantMessage.content) {
+          const parsedToolCalls = this.parseRawToolCalls(
+            assistantMessage.content
+          );
+          if (parsedToolCalls) {
+            finalToolCalls = parsedToolCalls;
+            finalContent = ""; // Clear content since it was actually tool calls
+          }
+        }
+
         // Handle tool calls
-        if (
-          assistantMessage.tool_calls &&
-          assistantMessage.tool_calls.length > 0
-        ) {
+        if (finalToolCalls && finalToolCalls.length > 0) {
           toolRounds++;
 
           // Add assistant message with tool calls
           const assistantEntry: ChatEntry = {
             type: "assistant",
-            content: assistantMessage.content || "Using tools to help you...",
+            content: finalContent || "Using tools to help you...",
             timestamp: new Date(),
-            toolCalls: assistantMessage.tool_calls,
+            toolCalls: finalToolCalls,
           };
           this.chatHistory.push(assistantEntry);
           newEntries.push(assistantEntry);
@@ -284,12 +295,12 @@ FINAL REMINDER: Always match the user's language. French question → French ans
           // Add assistant message to conversation
           this.messages.push({
             role: "assistant",
-            content: assistantMessage.content || "",
-            tool_calls: assistantMessage.tool_calls,
+            content: finalContent || "",
+            tool_calls: finalToolCalls,
           } as any);
 
           // Create initial tool call entries to show tools are being executed
-          assistantMessage.tool_calls.forEach((toolCall) => {
+          finalToolCalls.forEach((toolCall) => {
             const toolCallEntry: ChatEntry = {
               type: "tool_call",
               content: "Executing...",
@@ -301,7 +312,7 @@ FINAL REMINDER: Always match the user's language. French question → French ans
           });
 
           // Execute tool calls and update the entries
-          for (const toolCall of assistantMessage.tool_calls) {
+          for (const toolCall of finalToolCalls) {
             const result = await this.executeTool(toolCall);
 
             // Update the existing tool_call entry with the result
@@ -419,6 +430,60 @@ FINAL REMINDER: Always match the user's language. French question → French ans
     return reduce(previous, item.choices[0]?.delta || {});
   }
 
+  /**
+   * Parse raw JSON tool calls from content (fallback for models that don't support structured tool_calls)
+   * Some models like devstral return tool calls as raw JSON in the content field instead of using tool_calls
+   */
+  private parseRawToolCalls(content: string): HorusToolCall[] | null {
+    if (!content || typeof content !== "string") {
+      return null;
+    }
+
+    // Check if content looks like a JSON array of tool calls
+    const trimmed = content.trim();
+    if (!trimmed.startsWith("[") || !trimmed.endsWith("]")) {
+      return null;
+    }
+
+    try {
+      const parsed = JSON.parse(trimmed);
+
+      // Validate that it's an array of tool-like objects
+      if (!Array.isArray(parsed) || parsed.length === 0) {
+        return null;
+      }
+
+      // Check if all items have 'name' and 'arguments' properties (tool call format)
+      const allValid = parsed.every(
+        (item) =>
+          item &&
+          typeof item === "object" &&
+          typeof item.name === "string" &&
+          item.arguments !== undefined
+      );
+
+      if (!allValid) {
+        return null;
+      }
+
+      // Convert to HorusToolCall format
+      return parsed.map((item, index) => ({
+        id: `call_${Date.now()}_${index}`,
+        type: "function" as const,
+        function: {
+          name: item.name,
+          arguments:
+            typeof item.arguments === "string"
+              ? item.arguments
+              : JSON.stringify(item.arguments),
+        },
+      }));
+    } catch (error) {
+      // Not valid JSON or not a tool call format
+      return null;
+    }
+  }
+
   async *processUserMessageStream(
     message: string
   ): AsyncGenerator<StreamingChunk, void, unknown> {
@@ -470,6 +535,7 @@ FINAL REMINDER: Always match the user's language. French question → French ans
         let accumulatedMessage: any = {};
         let accumulatedContent = "";
         let toolCallsYielded = false;
+        let contentYielded = false; // Track if we've started yielding content
 
         for await (const chunk of stream) {
           // Check for cancellation in the streaming loop
@@ -502,7 +568,7 @@ FINAL REMINDER: Always match the user's language. French question → French ans
             }
           }
 
-          // Stream content as it comes
+          // Stream content as it comes, but only if we haven't detected tool calls yet
           if (chunk.choices[0].delta?.content) {
             accumulatedContent += chunk.choices[0].delta.content;
 
@@ -516,10 +582,41 @@ FINAL REMINDER: Always match the user's language. French question → French ans
                 : 0);
             totalOutputTokens = currentOutputTokens;
 
-            yield {
-              type: "content",
-              content: chunk.choices[0].delta.content,
-            };
+            // Only yield content if we haven't yielded tool calls yet
+            // (to avoid showing raw JSON before we detect it's tool calls)
+            if (!toolCallsYielded) {
+              // Check if accumulated content looks like raw tool calls (raw mode format)
+              // If response starts with '[', it's almost certainly raw tool calls
+              // Normal assistant responses don't start with '['
+              const trimmed = accumulatedContent.trim();
+              const startsWithBracket = trimmed.startsWith("[");
+
+              // More refined detection:
+              // - If it starts with '[' and we have less than 50 chars accumulated, wait
+              // - If it starts with '[{' it's definitely tool calls
+              // - If it contains '"name"' or '"arguments"' it's tool calls
+              const looksLikeToolCalls = startsWithBracket && (
+                trimmed.startsWith("[{") ||
+                trimmed.includes('"name"') ||
+                trimmed.includes('"arguments"') ||
+                trimmed.length < 50  // Wait longer if starts with [ to be sure
+              );
+
+              // Only yield content if it doesn't look like tool calls
+              if (!looksLikeToolCalls) {
+                yield {
+                  type: "content",
+                  content: chunk.choices[0].delta.content,
+                };
+                contentYielded = true;
+              }
+            } else if (contentYielded) {
+              // If we already started yielding content, continue
+              yield {
+                type: "content",
+                content: chunk.choices[0].delta.content,
+              };
+            }
 
             // Emit token count update
             const now = Date.now();
@@ -533,36 +630,50 @@ FINAL REMINDER: Always match the user's language. French question → French ans
         }
       }
 
+        // Fallback: Check if content contains raw JSON tool calls (for models that don't support tool_calls)
+        let finalToolCalls = accumulatedMessage.tool_calls;
+        let finalContent = accumulatedMessage.content;
+
+        if (!finalToolCalls && accumulatedMessage.content) {
+          const parsedToolCalls = this.parseRawToolCalls(
+            accumulatedMessage.content
+          );
+          if (parsedToolCalls) {
+            finalToolCalls = parsedToolCalls;
+            finalContent = ""; // Clear content since it was actually tool calls
+          }
+        }
+
         // Add assistant entry to history
         const assistantEntry: ChatEntry = {
           type: "assistant",
-          content: accumulatedMessage.content || "Using tools to help you...",
+          content: finalContent || "Using tools to help you...",
           timestamp: new Date(),
-          toolCalls: accumulatedMessage.tool_calls || undefined,
+          toolCalls: finalToolCalls || undefined,
         };
         this.chatHistory.push(assistantEntry);
 
         // Add accumulated message to conversation
         this.messages.push({
           role: "assistant",
-          content: accumulatedMessage.content || "",
-          tool_calls: accumulatedMessage.tool_calls,
+          content: finalContent || "",
+          tool_calls: finalToolCalls,
         } as any);
 
         // Handle tool calls if present
-        if (accumulatedMessage.tool_calls?.length > 0) {
+        if (finalToolCalls?.length > 0) {
           toolRounds++;
 
           // Only yield tool_calls if we haven't already yielded them during streaming
           if (!toolCallsYielded) {
             yield {
               type: "tool_calls",
-              toolCalls: accumulatedMessage.tool_calls,
+              toolCalls: finalToolCalls,
             };
           }
 
           // Execute tools
-          for (const toolCall of accumulatedMessage.tool_calls) {
+          for (const toolCall of finalToolCalls) {
             // Check for cancellation before executing each tool
             if (this.abortController?.signal.aborted) {
               yield {

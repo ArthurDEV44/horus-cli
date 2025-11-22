@@ -213,6 +213,11 @@ This will implement a "gather → act → verify" loop without requiring persist
 4. **MCP server configs**: Stored in project `.horus/settings.json`, not version controlled
 5. **Raw mode terminal**: Ink handles Ctrl+C; avoid manual SIGINT handling
 6. **WSL2 compatibility**: Application includes error handling for EPERM stdin errors common in WSL2 environments. If you encounter terminal input issues, ensure stdin is properly initialized before Ink starts (handled in `ensureStdinReady()`)
+7. **Model tool calling compatibility**: Some models (like devstral) return tool calls as raw JSON in the `content` field instead of using the OpenAI-standard `tool_calls` structure. The agent includes:
+   - **Streaming detection** (line 587-608): Prevents displaying raw JSON during streaming by detecting tool call patterns
+   - **Fallback parser** (`parseRawToolCalls()` at line 426-474): Automatically converts raw JSON tool calls to proper format after streaming
+   - See `DEVSTRAL_TOOL_CALLING.md` for detailed technical analysis
+   - Models known to work well with structured tool calls include: qwen2.5-coder, deepseek-coder-v2, mistral-nemo, and llama3.1
 
 ## Resources
 
