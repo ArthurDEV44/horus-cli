@@ -15,6 +15,8 @@ import type {
 } from '../types/context.js';
 import { ContextCache, getContextCache } from './cache.js';
 import { SearchTool } from '../tools/search.js';
+import { SearchToolV2, type SearchOptions, type ScoreStrategy } from '../tools/search-v2.js';
+import { SnippetBuilder, type SnippetOptions } from './snippet-builder.js';
 import { createTokenCounter } from '../utils/token-counter.js';
 import type { ToolResult } from '../types/index.js';
 import path from 'path';
@@ -32,6 +34,8 @@ import fs from 'fs-extra';
 export class ContextOrchestrator {
   private cache: ContextCache;
   private searchTool: SearchTool;
+  private searchV2: SearchToolV2;
+  private snippetBuilder: SnippetBuilder;
   private config: Required<ContextOrchestratorConfig>;
   private tokenCounter = createTokenCounter();
   private debug: boolean;
@@ -51,6 +55,8 @@ export class ContextOrchestrator {
       debug: this.debug,
     });
     this.searchTool = new SearchTool();
+    this.searchV2 = new SearchToolV2();
+    this.snippetBuilder = new SnippetBuilder();
 
     if (this.debug) {
       console.error('[ContextOrchestrator] Initialized with config:', this.config);
@@ -59,7 +65,7 @@ export class ContextOrchestrator {
 
   /**
    * Gather context based on request
-   * MVP: Uses fixed agentic search strategy
+   * Phase 2: Support enhanced search with SearchToolV2
    */
   async gather(request: ContextRequest): Promise<ContextBundle> {
     const startTime = Date.now();
@@ -76,8 +82,19 @@ export class ContextOrchestrator {
       console.error('[ContextOrchestrator] Token budget:', budget);
     }
 
-    // MVP: Always use agentic search strategy
-    const sources = await this.agenticSearch(request.query, budget.available, request);
+    // Phase 2: Use enhanced search if HORUS_USE_SEARCH_V2 is enabled
+    const useSearchV2 = process.env.HORUS_USE_SEARCH_V2 === 'true';
+
+    let sources: ContextSource[];
+    if (useSearchV2) {
+      if (this.debug) {
+        console.error('[ContextOrchestrator] Using enhanced search (SearchToolV2)');
+      }
+      sources = await this.enhancedSearch(request.query, request.intent, this.config.maxSources);
+    } else {
+      // Phase 1: Original agentic search
+      sources = await this.agenticSearch(request.query, budget.available, request);
+    }
 
     // Build and return context bundle
     const bundle: ContextBundle = {
@@ -569,6 +586,90 @@ export class ContextOrchestrator {
 
     // Default
     return 'general';
+  }
+
+  /**
+   * Enhanced search using SearchToolV2 with intelligent scoring
+   * Phase 2 implementation
+   */
+  async enhancedSearch(
+    query: string,
+    intent: IntentType,
+    maxResults: number = 5
+  ): Promise<ContextSource[]> {
+    // Determine scoring strategy based on intent
+    const scoreStrategy = this.selectScoringStrategy(intent);
+
+    // Extract keywords for search
+    const keywords = this.extractKeywords(query);
+
+    if (this.debug) {
+      console.error(`[ContextOrchestrator] Enhanced search with strategy: ${scoreStrategy}`);
+      console.error(`[ContextOrchestrator] Keywords: ${keywords.join(', ')}`);
+    }
+
+    // Build search patterns (TypeScript/JavaScript focus)
+    const patterns = ['**/*.ts', '**/*.tsx', '**/*.js', '**/*.jsx'];
+
+    // Execute SearchToolV2 with scoring
+    const searchOptions: SearchOptions = {
+      patterns,
+      exclude: ['**/*.spec.ts', '**/*.test.ts', '**/dist/**', '**/node_modules/**'],
+      maxResults,
+      scoreBy: scoreStrategy,
+      returnFormat: 'snippets', // Use snippets for token efficiency
+      query: keywords.join(' '),
+      snippetLines: 30,
+    };
+
+    const result = await this.searchV2.search(searchOptions);
+
+    if (this.debug) {
+      console.error(
+        `[ContextOrchestrator] SearchV2 found ${result.files.length} files (${result.metadata.tokensEstimated} tokens)`
+      );
+    }
+
+    // Convert to ContextSource format
+    const sources: ContextSource[] = result.files.map((scoredFile) => ({
+      type: 'snippet' as const,
+      path: scoredFile.path,
+      content: scoredFile.snippet || '',
+      tokens: scoredFile.tokens || 0,
+      metadata: {
+        strategy: 'agentic-search',
+        score: scoredFile.score,
+        reasons: scoredFile.reasons,
+        fetchedAt: new Date(),
+        fromCache: false,
+      },
+    }));
+
+    return sources;
+  }
+
+  /**
+   * Select scoring strategy based on intent
+   */
+  private selectScoringStrategy(intent: IntentType): ScoreStrategy {
+    switch (intent) {
+      case 'explain':
+      case 'debug':
+        // For explanation/debugging: prefer files modified recently
+        return 'modified';
+
+      case 'refactor':
+      case 'implement':
+        // For refactoring/implementation: prefer files by import graph
+        return 'imports';
+
+      case 'search':
+        // For explicit search: use fuzzy matching on filename
+        return 'fuzzy';
+
+      default:
+        return 'modified'; // Safe default
+    }
   }
 
   /**
