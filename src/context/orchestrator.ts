@@ -15,10 +15,10 @@ import type {
 } from '../types/context.js';
 import { ContextCache, getContextCache } from './cache.js';
 import { SearchTool } from '../tools/search.js';
-import { TextEditorTool } from '../tools/text-editor.js';
 import { createTokenCounter } from '../utils/token-counter.js';
 import type { ToolResult } from '../types/index.js';
 import path from 'path';
+import fs from 'fs-extra';
 
 /**
  * Context Orchestrator - MVP Implementation
@@ -32,7 +32,6 @@ import path from 'path';
 export class ContextOrchestrator {
   private cache: ContextCache;
   private searchTool: SearchTool;
-  private textEditor: TextEditorTool;
   private config: Required<ContextOrchestratorConfig>;
   private tokenCounter = createTokenCounter();
   private debug: boolean;
@@ -52,7 +51,6 @@ export class ContextOrchestrator {
       debug: this.debug,
     });
     this.searchTool = new SearchTool();
-    this.textEditor = new TextEditorTool();
 
     if (this.debug) {
       console.error('[ContextOrchestrator] Initialized with config:', this.config);
@@ -255,23 +253,32 @@ export class ContextOrchestrator {
         }
       }
 
-      // Read from disk
-      const result = await this.textEditor.view(filePath);
+      // Read from disk directly (not via TextEditorTool to avoid formatting)
+      const resolvedPath = path.resolve(filePath);
 
-      if (!result.success || !result.output) {
+      if (!await fs.pathExists(resolvedPath)) {
         if (this.debug) {
-          console.error(`[ContextOrchestrator] Failed to read: ${filePath}`);
+          console.error(`[ContextOrchestrator] File not found: ${filePath}`);
         }
         return null;
       }
 
-      const content = result.output;
-      const tokens = this.tokenCounter.countTokens(content);
+      const stats = await fs.stat(resolvedPath);
+      if (stats.isDirectory()) {
+        if (this.debug) {
+          console.error(`[ContextOrchestrator] Path is directory: ${filePath}`);
+        }
+        return null;
+      }
+
+      // Read raw file content
+      const rawContent = await fs.readFile(resolvedPath, 'utf-8');
+      const tokens = this.tokenCounter.countTokens(rawContent);
 
       const source: ContextSource = {
         type: 'file',
         path: filePath,
-        content,
+        content: rawContent,
         tokens,
         metadata: {
           strategy,

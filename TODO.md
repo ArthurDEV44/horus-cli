@@ -254,6 +254,55 @@
 - ✅ Build sans erreurs (`bun run build`)
 - ✅ Aucune régression introduite
 
+### 🐛 Bugs corrigés (Post-implémentation)
+
+**Date** : 2025-01-22
+**Commits** : `60583ac`
+
+1. ✅ **SearchTool import fs-extra** (`src/tools/search.ts:5`)
+   - **Problème** : `import * as fs` ne fonctionnait pas correctement
+   - **Solution** : `import fs from "fs-extra"`
+   - **Impact** : SearchTool trouve maintenant les fichiers (0 → 5+ résultats)
+
+2. ✅ **Phase GATHER manquante en mode streaming** (`src/agent/horus-agent.ts:585-630`)
+   - **Problème** : Code seulement dans `processUserMessage()`, pas dans `processUserMessageStream()`
+   - **Solution** : Duplication de la logique GATHER
+   - **Impact** : Mode MVP fonctionne en mode interactif
+
+3. ✅ **searchType 'files' → 'both'** (`src/context/orchestrator.ts:202`)
+   - **Problème** : Cherchait uniquement les noms de fichiers
+   - **Solution** : `searchType: 'both'` (noms + contenu)
+   - **Impact** : Trouve "ContextOrchestrator" dans le contenu
+
+4. ✅ **Parsing résultats amélioré** (`src/context/orchestrator.ts:399-463`)
+   - **Problème** : Ne reconnaissait pas le format "file.ts (N matches)"
+   - **Solution** : Regex améliorées + skip header lines
+   - **Impact** : Extraction correcte de 5 fichiers vs 0
+
+5. ✅ **Filtrage keywords techniques** (`src/context/orchestrator.ts:184-195`)
+   - **Problème** : Cherchait "explique-moi contextorchestrator" (aucun résultat)
+   - **Solution** : Filtre les mots d'action, garde seulement termes techniques
+   - **Impact** : Recherche simplifiée à "contextorchestrator" (5 résultats)
+
+6. ✅ **Extraction keywords avec tirets** (`src/context/orchestrator.ts:402`)
+   - **Problème** : "explique-moi" extrait comme un seul mot
+   - **Solution** : Split sur hyphens également
+   - **Impact** : "explique-moi" → "explique" + "moi" (filtré)
+
+7. ✅ **Intent detection "explique"** (`src/context/orchestrator.ts:481`)
+   - **Problème** : "Explique-moi" détecté comme `general`
+   - **Solution** : Ajout de `lowerQuery.includes('explique')`
+   - **Impact** : Intent correct : `explain`
+
+### 🧪 Tests validés
+
+- ✅ `bun run build` : 0 erreurs
+- ✅ `bun test` : 36/36 tests passent
+- ✅ SearchTool trouve 5 fichiers pour "contextorchestrator"
+- ✅ Keywords filtrés : "explique-moi le X" → "x"
+- ✅ Intent détection : "Explique-moi" → `explain`
+- ✅ Phase GATHER exécutée en mode streaming
+
 ### 🚀 Prochaines étapes (Phase 2)
 
 **Ready to start** :
