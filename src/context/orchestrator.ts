@@ -17,6 +17,7 @@ import { ContextCache, getContextCache } from './cache.js';
 import { SearchTool } from '../tools/search.js';
 import { SearchToolV2, type SearchOptions, type ScoreStrategy } from '../tools/search-v2.js';
 import { SnippetBuilder, type SnippetOptions } from './snippet-builder.js';
+import { SubagentManager, detectParallelizableTask, type SubtaskRequest, type SubagentResult } from './subagent-manager.js';
 import { createTokenCounter } from '../utils/token-counter.js';
 import type { ToolResult } from '../types/index.js';
 import path from 'path';
@@ -30,12 +31,16 @@ import fs from 'fs-extra';
  * - LRU cache integration
  * - Basic token budget management
  * - Intent detection (basic)
+ * Phase 3 additions:
+ * - SubagentManager for parallelization
+ * - Automatic detection of parallelizable tasks
  */
 export class ContextOrchestrator {
   private cache: ContextCache;
   private searchTool: SearchTool;
   private searchV2: SearchToolV2;
   private snippetBuilder: SnippetBuilder;
+  private subagentManager?: SubagentManager;
   private config: Required<ContextOrchestratorConfig>;
   private tokenCounter = createTokenCounter();
   private debug: boolean;
@@ -58,6 +63,24 @@ export class ContextOrchestrator {
     this.searchV2 = new SearchToolV2();
     this.snippetBuilder = new SnippetBuilder();
 
+    // Phase 3: Initialize SubagentManager if enabled
+    const useSubagents = process.env.HORUS_USE_SUBAGENTS === 'true';
+    const isSubagentMode = process.env.HORUS_SUBAGENT_MODE === 'true'; // Prevent nesting
+
+    if (useSubagents && !isSubagentMode) {
+      this.subagentManager = new SubagentManager({
+        apiKey: process.env.HORUS_API_KEY || '',
+        baseURL: process.env.OLLAMA_BASE_URL,
+        model: process.env.HORUS_MODEL,
+        maxConcurrent: 3,
+        debug: this.debug,
+      });
+
+      if (this.debug) {
+        console.error('[ContextOrchestrator] SubagentManager initialized (maxConcurrent: 3)');
+      }
+    }
+
     if (this.debug) {
       console.error('[ContextOrchestrator] Initialized with config:', this.config);
     }
@@ -66,6 +89,7 @@ export class ContextOrchestrator {
   /**
    * Gather context based on request
    * Phase 2: Support enhanced search with SearchToolV2
+   * Phase 3: Support subagents for parallelizable tasks
    */
   async gather(request: ContextRequest): Promise<ContextBundle> {
     const startTime = Date.now();
@@ -80,6 +104,17 @@ export class ContextOrchestrator {
 
     if (this.debug) {
       console.error('[ContextOrchestrator] Token budget:', budget);
+    }
+
+    // Phase 3: Check if task is parallelizable and subagents are enabled
+    if (this.subagentManager) {
+      const parallelTasks = await this.detectParallelizableTasks(request);
+      if (parallelTasks && parallelTasks.length > 0) {
+        if (this.debug) {
+          console.error(`[ContextOrchestrator] Detected parallelizable task (${parallelTasks.length} subtasks)`);
+        }
+        return await this.executeWithSubagents(parallelTasks, startTime);
+      }
     }
 
     // Phase 2: Use enhanced search if HORUS_USE_SEARCH_V2 is enabled
@@ -710,6 +745,152 @@ export class ContextOrchestrator {
    */
   getCacheStats() {
     return this.cache.getStats();
+  }
+
+  /**
+   * Phase 3: Detect if a task can be parallelized via subagents
+   */
+  private async detectParallelizableTasks(request: ContextRequest): Promise<SubtaskRequest[] | null> {
+    // First, search for files that match the query
+    const keywords = this.extractKeywords(request.query);
+    if (keywords.length === 0) {
+      return null;
+    }
+
+    // Try to find files using SearchToolV2 or SearchTool
+    const searchPattern = keywords.join(' ');
+    let files: string[] = [];
+
+    try {
+      if (process.env.HORUS_USE_SEARCH_V2 === 'true') {
+        const results = await this.searchV2.search({
+          patterns: keywords.map(k => `**/*${k}*`),
+          exclude: ['node_modules', '.git', 'dist', 'build'],
+          maxResults: 20,
+          scoreBy: 'modified',
+          returnFormat: 'paths',
+        });
+        files = results.files.map(f => f.path);
+      } else {
+        const searchResults = await this.searchTool.search(searchPattern, {
+          searchType: 'files',
+          maxResults: 20,
+        });
+
+        if (searchResults.success && searchResults.output) {
+          // Parse output to extract file paths
+          const lines = searchResults.output.split('\n');
+          const uniqueFiles = new Set<string>();
+
+          for (const line of lines) {
+            const trimmed = line.trim();
+            if (trimmed && !trimmed.startsWith('===') && !trimmed.startsWith('Found')) {
+              // Extract file path (format: "path/to/file.ts")
+              const match = trimmed.match(/^([^\s:]+)/);
+              if (match) {
+                uniqueFiles.add(match[1]);
+              }
+            }
+          }
+
+          files = Array.from(uniqueFiles);
+        }
+      }
+    } catch (error) {
+      if (this.debug) {
+        console.error('[ContextOrchestrator] Error searching for files:', error);
+      }
+      return null;
+    }
+
+    // Use the helper function from subagent-manager
+    const parallelTasks = detectParallelizableTask(request.query, files);
+
+    if (parallelTasks && this.debug) {
+      console.error(`[ContextOrchestrator] Detected ${parallelTasks.length} parallel subtasks`);
+      console.error(`[ContextOrchestrator] Files per subtask: ${parallelTasks.map(t => t.files.length).join(', ')}`);
+    }
+
+    return parallelTasks;
+  }
+
+  /**
+   * Phase 3: Execute request using subagents in parallel
+   */
+  private async executeWithSubagents(
+    tasks: SubtaskRequest[],
+    startTime: number
+  ): Promise<ContextBundle> {
+    if (!this.subagentManager) {
+      throw new Error('SubagentManager not initialized');
+    }
+
+    if (this.debug) {
+      console.error(`[ContextOrchestrator] Executing ${tasks.length} subagents in parallel`);
+    }
+
+    // Execute subagents in parallel
+    const results = await this.subagentManager.spawnParallel(tasks);
+
+    // Aggregate results into a context bundle
+    const sources: ContextSource[] = [];
+    const allChanges = new Set<string>();
+    let totalTokens = 0;
+
+    for (const result of results) {
+      // Add summary as a source
+      sources.push({
+        type: 'snippet',
+        path: `subagent-summary-${sources.length + 1}`,
+        content: result.summary,
+        tokens: Math.ceil(result.summary.length / 4), // Rough estimate
+        metadata: {
+          fromCache: false,
+          strategy: 'subagent',
+          subagentMetadata: result.metadata,
+        },
+      });
+
+      totalTokens += result.metadata.tokensUsed;
+
+      // Track changes
+      result.changes.forEach(change => allChanges.add(change));
+    }
+
+    const successful = results.filter(r => r.success).length;
+
+    const bundle: ContextBundle = {
+      sources,
+      metadata: {
+        filesScanned: tasks.reduce((sum, t) => sum + t.files.length, 0),
+        filesRead: results.reduce((sum, r) => sum + r.metadata.filesRead, 0),
+        tokensUsed: totalTokens,
+        strategy: 'subagent',
+        duration: Date.now() - startTime,
+        cacheHits: 0,
+        cacheMisses: 0,
+        budgetExceeded: false,
+        warnings: [],
+        subagentResults: {
+          total: results.length,
+          successful,
+          failed: results.length - successful,
+          filesModified: allChanges.size,
+        },
+      },
+    };
+
+    if (this.debug) {
+      console.error('[ContextOrchestrator] Subagent execution completed:', {
+        subagents: results.length,
+        successful,
+        filesModified: allChanges.size,
+        tokens: totalTokens,
+        duration: bundle.metadata.duration,
+      });
+    }
+
+    return bundle;
   }
 
   /**
