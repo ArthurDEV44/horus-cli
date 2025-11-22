@@ -528,6 +528,88 @@ horus context stats
 horus context status --last 50 | grep "tokens"
 ```
 
+### Système de Contexte Avancé (Phase 2)
+
+Horus CLI implémente un système de contexte avancé inspiré de Claude Code pour optimiser la récupération et l'utilisation des informations :
+
+#### SearchToolV2 - Recherche Intelligente
+
+SearchToolV2 offre une recherche de fichiers avancée avec scoring automatique :
+
+**Stratégies de Scoring** :
+- **Modified** : Privilégie les fichiers récemment modifiés (git log <7 jours)
+- **Imports** : Privilégie les fichiers qui importent ou mentionnent les termes recherchés
+- **Fuzzy** : Utilise la distance de Levenshtein pour le matching sur les noms de fichiers
+
+**Activation** :
+```bash
+# Activer SearchToolV2 (expérimental)
+export HORUS_USE_SEARCH_V2=true
+horus
+
+# Avec debug pour voir le scoring
+export HORUS_CONTEXT_DEBUG=true
+export HORUS_USE_SEARCH_V2=true
+horus
+```
+
+**Exemple de sortie debug** :
+```
+[ContextOrchestrator] Enhanced search with strategy: modified
+[ContextOrchestrator] Keywords: contextorchestrator
+[SearchV2] Scanned: 245, Matched: 5, Duration: 156ms, Tokens: 1250
+```
+
+#### SnippetBuilder - Compression Structurelle
+
+Le SnippetBuilder réduit la consommation de tokens en extrayant uniquement les déclarations importantes d'un fichier :
+
+**Éléments extraits** :
+- Export declarations
+- Functions (sync & async)
+- Classes
+- Interfaces & Types
+- Const/let/var (niveau supérieur)
+- JSDoc comments (optionnel)
+
+**Bénéfices** :
+- **Réduction tokens** : 40-60% par fichier (compression ratio ~0.53)
+- **Rapidité** : Pas d'appel LLM (parsing structurel uniquement)
+- **Précision** : Préserve toutes les signatures importantes
+
+**Utilisation automatique** :
+Lorsque `HORUS_USE_SEARCH_V2=true`, les snippets sont automatiquement utilisés avec `returnFormat: 'snippets'` pour optimiser la consommation de tokens.
+
+**Configuration manuelle** :
+```typescript
+import { SnippetBuilder } from '@vibe-kit/horus-cli';
+
+const builder = new SnippetBuilder();
+const snippet = builder.buildSnippet('src/index.ts', {
+  maxLines: 30,           // Limite de lignes importantes
+  includeImports: false,  // Exclure les imports
+  includeComments: true,  // Inclure JSDoc
+});
+
+console.log(`Compression: ${(snippet.metadata.compressionRatio * 100).toFixed(1)}%`);
+// Output: "Compression: 53.2%"
+```
+
+#### ContextOrchestrator - Stratégie Adaptative
+
+L'orchestrateur sélectionne automatiquement la meilleure stratégie de scoring basée sur l'intent détecté :
+
+| Intent | Stratégie | Raison |
+|--------|-----------|--------|
+| `explain` / `debug` | `modified` | Fichiers récents plus pertinents pour debug |
+| `refactor` / `implement` | `imports` | Graphe de dépendances critique |
+| `search` | `fuzzy` | Matching sur nom de fichier |
+
+**Modes disponibles** :
+- `HORUS_CONTEXT_MODE=off` : Désactivé (comportement original)
+- `HORUS_CONTEXT_MODE=mvp` : Phase 1 (agentic search basique + cache)
+- `HORUS_USE_SEARCH_V2=true` : Phase 2 (SearchV2 + snippets + scoring)
+
 ## Développement
 
 ```bash
