@@ -146,6 +146,14 @@ export interface ContextMetadata {
 
   /** Any warnings or issues */
   warnings?: string[];
+
+  /** Results from subagent execution (Phase 3) */
+  subagentResults?: {
+    total: number;
+    successful: number;
+    failed: number;
+    filesModified: number;
+  };
 }
 
 /**
