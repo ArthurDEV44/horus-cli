@@ -20,6 +20,9 @@ import { EventEmitter } from "events";
 import { createTokenCounter, TokenCounter } from "../utils/token-counter.js";
 import { loadCustomInstructions } from "../utils/custom-instructions.js";
 import { getSettingsManager } from "../utils/settings-manager.js";
+import { ContextOrchestrator } from "../context/orchestrator.js";
+import type { ContextRequest, ContextBundle } from "../types/context.js";
+import { getModelMaxContext } from "../horus/model-configs.js";
 
 export interface ChatEntry {
   type: "user" | "assistant" | "tool_result" | "tool_call";
@@ -54,6 +57,9 @@ export class HorusAgent extends EventEmitter {
   private abortController: AbortController | null = null;
   private mcpInitialized: boolean = false;
   private maxToolRounds: number;
+  private contextOrchestrator?: ContextOrchestrator;
+  private contextMode: 'off' | 'mvp' | 'full';
+  private currentModel: string;
 
   constructor(
     apiKey: string,
@@ -65,6 +71,7 @@ export class HorusAgent extends EventEmitter {
     const manager = getSettingsManager();
     const savedModel = manager.getCurrentModel();
     const modelToUse = model || savedModel;
+    this.currentModel = modelToUse;
     this.maxToolRounds = maxToolRounds || 400;
     this.horusClient = new HorusClient(apiKey, modelToUse, baseURL);
     this.textEditor = new TextEditorTool();
@@ -74,6 +81,25 @@ export class HorusAgent extends EventEmitter {
     this.confirmationTool = new ConfirmationTool();
     this.search = new SearchTool();
     this.tokenCounter = createTokenCounter(modelToUse);
+
+    // Initialize context mode from environment variable
+    const envContextMode = process.env.HORUS_CONTEXT_MODE?.toLowerCase();
+    this.contextMode = (envContextMode === 'mvp' || envContextMode === 'full')
+      ? envContextMode
+      : 'off';
+
+    // Initialize context orchestrator if enabled
+    if (this.contextMode !== 'off') {
+      this.contextOrchestrator = new ContextOrchestrator({
+        cacheEnabled: true,
+        defaultContextPercent: 0.3,
+        debug: process.env.HORUS_CONTEXT_DEBUG === 'true',
+      });
+
+      if (process.env.HORUS_CONTEXT_DEBUG === 'true') {
+        console.error(`[HorusAgent] Context orchestrator initialized (mode: ${this.contextMode})`);
+      }
+    }
 
     // Initialize MCP servers if configured
     this.initializeMCP();
@@ -249,6 +275,54 @@ FINAL REMINDER: Always match the user's language. French question → French ans
     const maxToolRounds = this.maxToolRounds; // Prevent infinite loops
     let toolRounds = 0;
 
+    // GATHER PHASE: Context orchestration (if enabled)
+    if (this.contextOrchestrator) {
+      try {
+        const maxContext = getModelMaxContext(this.currentModel);
+        const historyTokens = this.tokenCounter.countTokens(
+          JSON.stringify(this.messages)
+        );
+
+        const contextRequest: ContextRequest = {
+          intent: this.contextOrchestrator.detectIntent(message),
+          query: message,
+          currentContext: this.chatHistory,
+          budget: {
+            maxTokens: maxContext,
+            reservedForContext: 0.3,
+            usedByHistory: historyTokens,
+            available: Math.max(0, Math.floor(maxContext * 0.3) - historyTokens),
+          },
+        };
+
+        if (process.env.HORUS_CONTEXT_DEBUG === 'true') {
+          console.error('[HorusAgent] Gathering context with request:', {
+            intent: contextRequest.intent,
+            budget: contextRequest.budget,
+          });
+        }
+
+        const contextBundle = await this.contextOrchestrator.gather(contextRequest);
+
+        // Inject context bundle into chat history
+        if (contextBundle.sources.length > 0) {
+          this.injectContextBundle(contextBundle);
+
+          if (process.env.HORUS_CONTEXT_DEBUG === 'true') {
+            console.error('[HorusAgent] Context injected:', {
+              sources: contextBundle.sources.length,
+              tokens: contextBundle.metadata.tokensUsed,
+              cacheHits: contextBundle.metadata.cacheHits,
+            });
+          }
+        }
+      } catch (error) {
+        console.error('[HorusAgent] Context gathering failed:', error);
+        // Continue without context optimization
+      }
+    }
+
+    // ACT PHASE: Execute agent loop
     try {
       const tools = await getAllHorusTools();
       let currentResponse = await this.horusClient.chat(
@@ -918,5 +992,73 @@ FINAL REMINDER: Always match the user's language. French question → French ans
     if (this.abortController) {
       this.abortController.abort();
     }
+  }
+
+  /**
+   * Inject context bundle into chat history
+   * Adds relevant context sources as system messages
+   */
+  private injectContextBundle(bundle: ContextBundle): void {
+    if (bundle.sources.length === 0) {
+      return;
+    }
+
+    // Build context message
+    const contextParts: string[] = [
+      '=== RELEVANT CONTEXT ===',
+      '',
+      `Strategy: ${bundle.metadata.strategy}`,
+      `Sources: ${bundle.sources.length} files`,
+      `Tokens: ${bundle.metadata.tokensUsed}`,
+      `Cache hits: ${bundle.metadata.cacheHits || 0}/${bundle.sources.length}`,
+      '',
+    ];
+
+    // Add each source
+    for (const source of bundle.sources) {
+      contextParts.push(`--- ${source.path} ---`);
+
+      // Add metadata if available
+      if (source.metadata.reasons && source.metadata.reasons.length > 0) {
+        contextParts.push(`Relevance: ${source.metadata.reasons.join(', ')}`);
+      }
+      if (source.lineRange) {
+        contextParts.push(
+          `Lines: ${source.lineRange.start}-${source.lineRange.end}`
+        );
+      }
+
+      contextParts.push('');
+      contextParts.push(source.content);
+      contextParts.push('');
+    }
+
+    contextParts.push('=== END CONTEXT ===');
+
+    const contextMessage = contextParts.join('\n');
+
+    // Add as system message to preserve context
+    this.messages.push({
+      role: 'system',
+      content: contextMessage,
+    });
+
+    if (process.env.HORUS_CONTEXT_DEBUG === 'true') {
+      console.error('[HorusAgent] Context bundle injected into messages');
+    }
+  }
+
+  /**
+   * Get context orchestrator statistics (if enabled)
+   */
+  getContextStats() {
+    return this.contextOrchestrator?.getCacheStats();
+  }
+
+  /**
+   * Clear context cache (if enabled)
+   */
+  clearContextCache() {
+    this.contextOrchestrator?.clearCache();
   }
 }
