@@ -9,6 +9,7 @@ import { getSettingsManager } from "./utils/settings-manager.js";
 import { ConfirmationService } from "./utils/confirmation-service.js";
 import { createMCPCommand } from "./commands/mcp.js";
 import { createContextCommand } from "./commands/context.js";
+import { getRecommendedModel } from "./horus/model-selector.js";
 import type { ChatCompletionMessageParam } from "openai/resources/chat";
 
 // Load environment variables
@@ -431,6 +432,19 @@ program
       const baseURL = options.baseUrl || loadBaseURL();
       const model = options.model || loadModel();
       const maxToolRounds = parseInt(options.maxToolRounds) || 400;
+
+      // Phase 5: Show model recommendation hint if using default
+      if (!options.model && process.env.HORUS_CONTEXT_DEBUG === 'true') {
+        try {
+          const recommendation = await getRecommendedModel(16384);
+          if (recommendation.modelName !== model) {
+            console.error(`[MODEL-SELECTOR] Recommended model: ${recommendation.modelName} (reason: ${recommendation.reason})`);
+            console.error(`[MODEL-SELECTOR] Current model: ${model}. Use --model ${recommendation.modelName} or run 'horus context bench' for details`);
+          }
+        } catch {
+          // Silently ignore recommendation errors
+        }
+      }
 
       // Save API key and base URL to user settings if provided via command line
       if (options.apiKey || options.baseUrl) {

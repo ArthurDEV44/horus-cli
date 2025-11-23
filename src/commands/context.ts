@@ -5,6 +5,8 @@ import { ContextOrchestrator } from "../context/orchestrator.js";
 import type { ContextRequest } from "../types/context.js";
 import { getModelMaxContext } from "../horus/model-configs.js";
 import { createTokenCounter } from "../utils/token-counter.js";
+import { getSystemInfo, formatSystemInfo } from "../utils/system-info.js";
+import { selectOptimalModel, selectModelByProfile, formatRecommendation, type ModelProfile } from "../horus/model-selector.js";
 import * as fs from "fs-extra";
 import * as path from "path";
 import chalk from "chalk";
@@ -274,6 +276,94 @@ export function createContextCommand(): Command {
       console.log(`  Cache Hit Rate:       ${cacheColor(cacheHitRate.toFixed(1) + "%")}`);
 
       console.log(); // Empty line at end
+    });
+
+  // horus context bench
+  contextCmd
+    .command("bench")
+    .description("Benchmark and model recommendation")
+    .option("-m, --model <name>", "Test specific model (optional)")
+    .option("-p, --profile <profile>", "Test specific profile: fast|balanced|powerful|deep")
+    .option("--json", "Output as JSON")
+    .action(async (options) => {
+      console.log(chalk.bold.cyan("\n🏋️  System Benchmark & Model Recommendation\n"));
+
+      // Get system info
+      console.log(chalk.dim("Detecting system configuration..."));
+      const sysInfo = await getSystemInfo();
+
+      if (options.json) {
+        const result = {
+          system: sysInfo,
+          recommendations: {
+            fast: selectOptimalModel(4000, sysInfo.vram),
+            balanced: selectOptimalModel(16000, sysInfo.vram),
+            powerful: selectOptimalModel(28000, sysInfo.vram),
+          },
+        };
+        console.log(JSON.stringify(result, null, 2));
+        return;
+      }
+
+      // Display system info
+      console.log(chalk.bold("System Configuration:"));
+      const formattedInfo = formatSystemInfo(sysInfo);
+      formattedInfo.split("\n").forEach((line) => {
+        console.log(`  ${chalk.dim(line)}`);
+      });
+      console.log();
+
+      // Model recommendation based on profile or automatic
+      if (options.profile) {
+        const profile = options.profile as ModelProfile;
+        console.log(chalk.bold(`Model Recommendation (Profile: ${chalk.cyan(profile)}):\n`));
+        try {
+          const recommendation = selectModelByProfile(profile, sysInfo.vram);
+          console.log(formatRecommendation(recommendation).split("\n").map((line) => `  ${line}`).join("\n"));
+        } catch (error) {
+          console.log(chalk.red(`  ✗ ${error.message}`));
+        }
+      } else {
+        // Show recommendations for different context sizes
+        console.log(chalk.bold("Model Recommendations by Context Size:\n"));
+
+        const scenarios = [
+          { name: "Small Context (4K tokens)", contextSize: 4000 },
+          { name: "Medium Context (16K tokens)", contextSize: 16000 },
+          { name: "Large Context (28K tokens)", contextSize: 28000 },
+        ];
+
+        for (const scenario of scenarios) {
+          console.log(chalk.bold.yellow(`${scenario.name}:`));
+          try {
+            const recommendation = selectOptimalModel(scenario.contextSize, sysInfo.vram);
+            console.log(`  Model: ${chalk.cyan(recommendation.modelName)} (${recommendation.profile})`);
+            console.log(`  Reason: ${chalk.dim(recommendation.reason)}`);
+          } catch (error) {
+            console.log(chalk.red(`  ✗ ${error.message}`));
+          }
+          console.log();
+        }
+      }
+
+      // Recommendations
+      console.log(chalk.bold("💡 Recommendations:\n"));
+
+      if (sysInfo.vram >= 32) {
+        console.log(chalk.green("  ✓ Your system can run all models including devstral:24b (128K context)"));
+        console.log(chalk.dim("  ✓ Recommended: Use devstral:24b for long coding sessions"));
+      } else if (sysInfo.vram >= 24) {
+        console.log(chalk.green("  ✓ Your system can run mixtral (8x7B) for complex tasks"));
+        console.log(chalk.dim("  ✓ Recommended: Use mixtral for refactoring, mistral-small for most tasks"));
+      } else if (sysInfo.vram >= 12) {
+        console.log(chalk.yellow("  ⚡ Recommended: mistral-small (22B) - Best balance for your system"));
+        console.log(chalk.dim("  ℹ️  Use mistral (7B) for faster responses when needed"));
+      } else {
+        console.log(chalk.yellow("  ⚡ Recommended: mistral (7B) - Fast and efficient"));
+        console.log(chalk.dim("  ⚠️  Consider upgrading VRAM for larger models"));
+      }
+
+      console.log();
     });
 
   return contextCmd;
