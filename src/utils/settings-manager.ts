@@ -27,8 +27,11 @@ export interface ProjectSettings {
  */
 const DEFAULT_USER_SETTINGS: Partial<UserSettings> = {
   baseURL: "http://localhost:11434/v1",
-  defaultModel: "devstral:24b",
+  defaultModel: "mistral-small", // CHANGED from devstral:24b (Phase 5)
   models: [
+    "mistral",
+    "mistral-small",
+    "mixtral",
     "devstral:24b",
     "deepseek-coder-v2:16b",
     "qwen2.5-coder:14b",
@@ -41,7 +44,7 @@ const DEFAULT_USER_SETTINGS: Partial<UserSettings> = {
  * Default values for project settings
  */
 const DEFAULT_PROJECT_SETTINGS: Partial<ProjectSettings> = {
-  model: "devstral:24b",
+  model: "mistral-small", // CHANGED from devstral:24b (Phase 5)
 };
 
 /**
