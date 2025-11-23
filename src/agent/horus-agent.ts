@@ -84,29 +84,21 @@ export class HorusAgent extends EventEmitter {
     this.search = new SearchTool();
     this.tokenCounter = createTokenCounter(modelToUse);
 
-    // Initialize context mode from environment variable
-    const envContextMode = process.env.HORUS_CONTEXT_MODE?.toLowerCase();
-    this.contextMode = (envContextMode === 'mvp' || envContextMode === 'full')
-      ? envContextMode
-      : 'off';
+    // Initialize context orchestrator (always enabled, Phase 1-4 integration)
+    this.contextMode = 'full'; // Native integration, no longer a flag
+    this.contextOrchestrator = new ContextOrchestrator({
+      cacheEnabled: true,
+      defaultContextPercent: 0.3,
+      debug: process.env.HORUS_CONTEXT_DEBUG === 'true',
+    });
 
-    // Initialize context orchestrator if enabled
-    if (this.contextMode !== 'off') {
-      this.contextOrchestrator = new ContextOrchestrator({
-        cacheEnabled: true,
-        defaultContextPercent: 0.3,
-        debug: process.env.HORUS_CONTEXT_DEBUG === 'true',
-      });
-
-      if (process.env.HORUS_CONTEXT_DEBUG === 'true') {
-        console.error(`[HorusAgent] Context orchestrator initialized (mode: ${this.contextMode})`);
-      }
+    if (process.env.HORUS_CONTEXT_DEBUG === 'true') {
+      console.error(`[HorusAgent] Context orchestrator initialized (native integration)`);
     }
 
-    // Initialize verification pipeline if enabled
-    const verificationEnabled = process.env.HORUS_VERIFY_ENABLED === 'true';
-    if (verificationEnabled) {
-      const verificationMode = process.env.HORUS_VERIFY_MODE === 'thorough' ? 'thorough' : 'fast';
+    // Initialize verification pipeline (always enabled, Phase 4 integration)
+    const verificationMode = process.env.HORUS_VERIFY_MODE === 'thorough' ? 'thorough' : 'fast';
+    {
       this.verificationPipeline = getVerificationPipeline({
         mode: verificationMode,
         lintEnabled: true,

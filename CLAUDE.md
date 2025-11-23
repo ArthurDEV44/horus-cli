@@ -392,28 +392,22 @@ git push origin dev
 # Merge to main via PR
 ```
 
-### Feature Flag Testing
+### Debug Mode Testing
 
 ```bash
-# Test with context mode disabled (default behavior)
-HORUS_CONTEXT_MODE=off bun run dev
+# Test with full debug logging
+HORUS_CONTEXT_DEBUG=true bun run dev
 
-# Test with MVP context mode
-HORUS_CONTEXT_MODE=mvp bun run dev
+# Test with thorough verification mode
+HORUS_VERIFY_MODE=thorough bun run dev
 
-# Test with full context mode + all features
-HORUS_CONTEXT_MODE=full \
-HORUS_USE_SEARCH_V2=true \
-HORUS_USE_SUBAGENTS=true \
-HORUS_VERIFY_ENABLED=true \
+# Test with both
 HORUS_CONTEXT_DEBUG=true \
-bun run dev
-
-# Test verification pipeline
-HORUS_VERIFY_ENABLED=true \
 HORUS_VERIFY_MODE=thorough \
 bun run dev
 ```
+
+**Note**: Depuis l'intégration native (post-Phase 5), toutes les fonctionnalités sont activées par défaut. Les feature flags ont été retirés.
 
 ---
 
@@ -598,23 +592,24 @@ describe('ContextCache', () => {
 ### Environment Variables
 
 ```bash
-# Feature Flags
-HORUS_CONTEXT_MODE=off|mvp|full       # Context orchestrator mode
-HORUS_USE_SEARCH_V2=true              # Enable SearchToolV2
-HORUS_USE_SUBAGENTS=true              # Enable subagent parallelization
-HORUS_VERIFY_ENABLED=true             # Enable verification pipeline
-HORUS_VERIFY_MODE=fast|thorough       # Verification mode
-
 # Debug Flags
 HORUS_CONTEXT_DEBUG=true              # Enable context debug logging
+HORUS_VERIFY_MODE=fast|thorough       # Verification mode (default: fast)
 HORUS_SUBAGENT_MODE=true              # Internal flag (prevents nesting)
 
 # API Configuration
 HORUS_API_KEY=your_api_key            # Ollama doesn't need this
 HORUS_BASE_URL=http://localhost:11434/v1  # Default Ollama
-HORUS_MODEL=devstral:24b              # Default model
+HORUS_MODEL=mistral-small             # Default model (Phase 5)
 MORPH_API_KEY=your_morph_key          # Optional Fast Apply
 ```
+
+**Note**: Toutes les fonctionnalités des Phases 0-5 sont maintenant intégrées nativement :
+- ✅ ContextOrchestrator (Phase 1) - Toujours activé
+- ✅ SearchToolV2 + Scoring (Phase 2) - Toujours activé
+- ✅ SubagentManager (Phase 3) - Toujours activé
+- ✅ VerificationPipeline (Phase 4) - Toujours activé
+- ✅ Model Selection (Phase 5) - Intégré
 
 ---
 
