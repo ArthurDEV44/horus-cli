@@ -23,6 +23,7 @@ import { getSettingsManager } from "../utils/settings-manager.js";
 import { ContextOrchestrator } from "../context/orchestrator.js";
 import type { ContextRequest, ContextBundle } from "../types/context.js";
 import { getModelMaxContext } from "../horus/model-configs.js";
+import { getVerificationPipeline, VerificationPipeline, ToolResult as VerificationToolResult } from "../context/verification.js";
 
 export interface ChatEntry {
   type: "user" | "assistant" | "tool_result" | "tool_call";
@@ -60,6 +61,7 @@ export class HorusAgent extends EventEmitter {
   private contextOrchestrator?: ContextOrchestrator;
   private contextMode: 'off' | 'mvp' | 'full';
   private currentModel: string;
+  private verificationPipeline?: VerificationPipeline;
 
   constructor(
     apiKey: string,
@@ -98,6 +100,22 @@ export class HorusAgent extends EventEmitter {
 
       if (process.env.HORUS_CONTEXT_DEBUG === 'true') {
         console.error(`[HorusAgent] Context orchestrator initialized (mode: ${this.contextMode})`);
+      }
+    }
+
+    // Initialize verification pipeline if enabled
+    const verificationEnabled = process.env.HORUS_VERIFY_ENABLED === 'true';
+    if (verificationEnabled) {
+      const verificationMode = process.env.HORUS_VERIFY_MODE === 'thorough' ? 'thorough' : 'fast';
+      this.verificationPipeline = getVerificationPipeline({
+        mode: verificationMode,
+        lintEnabled: true,
+        testsEnabled: verificationMode === 'thorough',
+        typesEnabled: verificationMode === 'thorough',
+      });
+
+      if (process.env.HORUS_CONTEXT_DEBUG === 'true') {
+        console.error(`[HorusAgent] Verification pipeline initialized (mode: ${verificationMode})`);
       }
     }
 
@@ -388,6 +406,47 @@ FINAL REMINDER: Always match the user's language. French question → French ans
           // Execute tool calls and update the entries
           for (const toolCall of finalToolCalls) {
             const result = await this.executeTool(toolCall);
+
+            // VERIFY PHASE: Verify tool result if verification enabled
+            if (this.verificationPipeline && result.success) {
+              try {
+                const verificationResult = await this.verificationPipeline.verify({
+                  success: result.success,
+                  output: result.output || '',
+                  filePath: this.extractFilePath(toolCall),
+                  operation: this.extractOperation(toolCall.function.name),
+                });
+
+                if (!verificationResult.passed) {
+                  // Add verification feedback to chat
+                  const verificationFeedback = this.formatVerificationFeedback(verificationResult);
+
+                  if (process.env.HORUS_CONTEXT_DEBUG === 'true') {
+                    console.error('[HorusAgent] Verification failed:', verificationFeedback);
+                  }
+
+                  // Inject system message for LLM
+                  this.messages.push({
+                    role: "user",
+                    content: `⚠️ Verification failed:\n${verificationFeedback}\n\nPlease fix the issues above.`,
+                  });
+
+                  // Add to chat history
+                  const feedbackEntry: ChatEntry = {
+                    type: "assistant",
+                    content: `⚠️ Verification issues detected:\n${verificationFeedback}`,
+                    timestamp: new Date(),
+                  };
+                  this.chatHistory.push(feedbackEntry);
+                  newEntries.push(feedbackEntry);
+                }
+              } catch (error) {
+                if (process.env.HORUS_CONTEXT_DEBUG === 'true') {
+                  console.error('[HorusAgent] Verification error:', error);
+                }
+                // Continue without verification if error
+              }
+            }
 
             // Update the existing tool_call entry with the result
             const entryIndex = this.chatHistory.findIndex(
@@ -807,6 +866,43 @@ FINAL REMINDER: Always match the user's language. French question → French ans
 
             const result = await this.executeTool(toolCall);
 
+            // VERIFY PHASE: Verify tool result if verification enabled
+            if (this.verificationPipeline && result.success) {
+              try {
+                const verificationResult = await this.verificationPipeline.verify({
+                  success: result.success,
+                  output: result.output || '',
+                  filePath: this.extractFilePath(toolCall),
+                  operation: this.extractOperation(toolCall.function.name),
+                });
+
+                if (!verificationResult.passed) {
+                  const verificationFeedback = this.formatVerificationFeedback(verificationResult);
+
+                  if (process.env.HORUS_CONTEXT_DEBUG === 'true') {
+                    console.error('[HorusAgent] Verification failed (streaming):', verificationFeedback);
+                  }
+
+                  // Inject system message for LLM
+                  this.messages.push({
+                    role: "user",
+                    content: `⚠️ Verification failed:\n${verificationFeedback}\n\nPlease fix the issues above.`,
+                  });
+
+                  // Yield verification feedback
+                  yield {
+                    type: "content",
+                    content: `\n\n⚠️ Verification issues:\n${verificationFeedback}\n`,
+                  };
+                }
+              } catch (error) {
+                if (process.env.HORUS_CONTEXT_DEBUG === 'true') {
+                  console.error('[HorusAgent] Verification error (streaming):', error);
+                }
+                // Continue without verification if error
+              }
+            }
+
             const toolResultEntry: ChatEntry = {
               type: "tool_result",
               content: result.success
@@ -1107,5 +1203,59 @@ FINAL REMINDER: Always match the user's language. French question → French ans
    */
   clearContextCache() {
     this.contextOrchestrator?.clearCache();
+  }
+
+  /**
+   * Extract file path from tool call
+   */
+  private extractFilePath(toolCall: HorusToolCall): string | undefined {
+    try {
+      const args = JSON.parse(toolCall.function.arguments);
+      return args.path || args.file_path || args.filePath;
+    } catch {
+      return undefined;
+    }
+  }
+
+  /**
+   * Extract operation type from tool name
+   */
+  private extractOperation(toolName: string): 'view' | 'create' | 'str_replace' | 'replace_lines' | 'search' | undefined {
+    const operationMap: Record<string, 'view' | 'create' | 'str_replace' | 'replace_lines' | 'search'> = {
+      'view_file': 'view',
+      'create_file': 'create',
+      'str_replace_editor': 'str_replace',
+      'replace_lines': 'replace_lines',
+      'search_files': 'search',
+    };
+    return operationMap[toolName];
+  }
+
+  /**
+   * Format verification feedback for LLM
+   */
+  private formatVerificationFeedback(verificationResult: any): string {
+    const parts: string[] = [];
+
+    if (verificationResult.checks.lint && !verificationResult.checks.lint.passed) {
+      parts.push('**Lint issues:**');
+      verificationResult.checks.lint.issues.forEach((issue: string) => {
+        parts.push(`  - ${issue}`);
+      });
+    }
+
+    if (verificationResult.checks.tests && !verificationResult.checks.tests.passed) {
+      parts.push('\n**Test failures:**');
+      parts.push(verificationResult.checks.tests.output);
+    }
+
+    if (verificationResult.checks.types && !verificationResult.checks.types.passed) {
+      parts.push('\n**Type errors:**');
+      verificationResult.checks.types.errors.forEach((error: string) => {
+        parts.push(`  - ${error}`);
+      });
+    }
+
+    return parts.join('\n');
   }
 }

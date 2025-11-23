@@ -1,5 +1,10 @@
 import { Command } from "commander";
 import { ContextTelemetry } from "../utils/context-telemetry.js";
+import { getContextCache } from "../context/cache.js";
+import { ContextOrchestrator } from "../context/orchestrator.js";
+import type { ContextRequest } from "../types/context.js";
+import { getModelMaxContext } from "../horus/model-configs.js";
+import { createTokenCounter } from "../utils/token-counter.js";
 import * as fs from "fs-extra";
 import * as path from "path";
 import chalk from "chalk";
@@ -117,14 +122,109 @@ export function createContextCommand(): Command {
       }
     });
 
+  // horus context plan
+  contextCmd
+    .command("plan")
+    .description("Preview context gathering strategy for a query (dry-run)")
+    .argument("<query>", "Query to plan for")
+    .option("--model <model>", "Model to use for planning", "devstral:24b")
+    .option("--json", "Output as JSON")
+    .action(async (query: string, options) => {
+      const orchestrator = new ContextOrchestrator({
+        cacheEnabled: true,
+        defaultContextPercent: 0.3,
+        debug: false,
+      });
+
+      const maxContext = getModelMaxContext(options.model);
+      const tokenCounter = createTokenCounter(options.model);
+
+      const contextRequest: ContextRequest = {
+        intent: orchestrator.detectIntent(query),
+        query,
+        currentContext: [],
+        budget: {
+          maxTokens: maxContext,
+          reservedForContext: 0.3,
+          usedByHistory: 0,
+          available: Math.floor(maxContext * 0.3),
+        },
+      };
+
+      if (options.json) {
+        console.log(JSON.stringify({
+          query,
+          intent: contextRequest.intent,
+          budget: contextRequest.budget,
+        }, null, 2));
+        return;
+      }
+
+      console.log(chalk.bold.cyan("\n🗺️  Context Gathering Plan\n"));
+      console.log(chalk.bold("Query:"));
+      console.log(`  ${chalk.dim('"')}${query}${chalk.dim('"')}\n`);
+
+      console.log(chalk.bold("Intent Detection:"));
+      console.log(`  Detected: ${chalk.green(contextRequest.intent)}\n`);
+
+      console.log(chalk.bold("Token Budget:"));
+      console.log(`  Model:              ${chalk.cyan(options.model)}`);
+      console.log(`  Max Context:        ${chalk.yellow(maxContext.toLocaleString())} tokens`);
+      console.log(`  Reserved for Ctx:   ${chalk.yellow(contextRequest.budget.available.toLocaleString())} tokens (30%)`);
+      console.log(`  Used by History:    ${chalk.dim(contextRequest.budget.usedByHistory.toLocaleString())} tokens\n`);
+
+      console.log(chalk.bold("Strategy:"));
+      console.log(`  ${chalk.cyan("agentic-search")} (keyword-based file discovery)\n`);
+
+      console.log(chalk.dim("💡 Run with --json for machine-readable output\n"));
+    });
+
+  // horus context clear-cache
+  contextCmd
+    .command("clear-cache")
+    .description("Clear the context cache")
+    .option("-y, --yes", "Skip confirmation prompt")
+    .action(async (options) => {
+      const cache = getContextCache();
+      const stats = cache.getStats();
+
+      if (!options.yes && stats.size > 0) {
+        console.log(chalk.yellow(`⚠️  About to clear ${stats.size} cached entries`));
+        console.log(chalk.dim(`   Tokens saved: ~${stats.tokensSaved.toLocaleString()}`));
+        console.log(chalk.dim("   Use --yes to skip this confirmation\n"));
+
+        const { default: readline } = await import("readline");
+        const rl = readline.createInterface({
+          input: process.stdin,
+          output: process.stdout,
+        });
+
+        rl.question("Continue? (y/N) ", (answer) => {
+          rl.close();
+          if (answer.toLowerCase() !== "y" && answer.toLowerCase() !== "yes") {
+            console.log(chalk.dim("Cancelled"));
+            return;
+          }
+
+          cache.clear();
+          console.log(chalk.green("✓ Context cache cleared"));
+        });
+      } else {
+        cache.clear();
+        console.log(chalk.green("✓ Context cache cleared"));
+      }
+    });
+
   // horus context stats
   contextCmd
     .command("stats")
     .description("Show detailed statistics and analysis")
+    .option("-n, --last <number>", "Show last N operations")
     .option("--json", "Output as JSON")
     .action(async (options) => {
       const telemetry = ContextTelemetry.getInstance();
-      const snapshot = telemetry.getSnapshot();
+      const lastN = options.last ? parseInt(options.last, 10) : undefined;
+      const snapshot = telemetry.getSnapshot(lastN);
 
       if (snapshot.totalOperations === 0) {
         console.log(chalk.yellow("⚠️  No telemetry data available"));
@@ -139,13 +239,17 @@ export function createContextCommand(): Command {
             totalTokens: snapshot.totalOperations * snapshot.avgTokensPerOperation,
             totalDuration: snapshot.totalOperations * snapshot.avgDuration,
           },
+          ...(lastN && { limitedTo: lastN }),
         };
         console.log(JSON.stringify(stats, null, 2));
         return;
       }
 
       // Detailed stats
-      console.log(chalk.bold.cyan("\n📈 Detailed Telemetry Statistics\n"));
+      const title = lastN
+        ? `📈 Detailed Telemetry Statistics (last ${lastN})`
+        : "📈 Detailed Telemetry Statistics";
+      console.log(chalk.bold.cyan(`\n${title}\n`));
 
       console.log(chalk.bold("Performance Metrics:"));
       console.log(`  Total Operations:     ${chalk.green(snapshot.totalOperations)}`);

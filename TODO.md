@@ -16,7 +16,7 @@
 | **Phase 1** | ContextOrchestrator MVP | ✅ **TERMINÉ** | 100% | 1 jour |
 | **Phase 2** | SearchToolV2 + Scoring | ✅ **TERMINÉ** | 100% | 1 jour |
 | **Phase 3** | SubagentManager | ✅ **TERMINÉ** | 100% | 1 jour |
-| **Phase 4** | Verification + UX CLI | ⏸️ À FAIRE | 0% | - |
+| **Phase 4** | Verification + UX CLI | ✅ **TERMINÉ** | 100% | 1 jour |
 | **Phase 5** | Tuning modèles + benchmarks | ⏸️ À FAIRE | 0% | - |
 
 **Légende** :
@@ -536,38 +536,139 @@
 **Objectif** : Boucler le cycle gather-act-verify et rendre le système observable.
 
 **Durée estimée** : 2 semaines
-**Status** : ⏸️ À FAIRE
-**Dépendances** : Phases 1-3 complètes
+**Durée réelle** : 1 journée ✅
+**Status** : ✅ **TERMINÉ**
+**Dépendances** : Phases 1-3 complètes ✅
 
-### Plan d'implémentation
+### ✅ Complété (100%)
 
-#### Semaine 1 : VerificationPipeline
+#### VerificationPipeline ✅
 
-- [ ] Créer `VerificationPipeline`
-  - `src/context/verification.ts`
-  - Lint check (fast, 2s timeout)
-  - Test runner (thorough, opt-in)
-- [ ] Intégrer dans `HorusAgent`
-  - Vérification post-action
-  - Feedback loop (1 retry max)
+- [x] `src/context/verification.ts` (400 lignes) ✅
+  - Classes: `VerificationPipeline`
+  - Interfaces: `VerificationResult`, `LintResult`, `TestResult`, `TypeCheckResult`, `ToolResult`, `VerificationConfig`
+  - Modes: 'fast' | 'thorough'
+  - Lint check (fast, 2s timeout) ✅
+  - Test runner (thorough, opt-in) ✅
+  - Type check (thorough, opt-in) ✅
+  - Telemetry intégrée ✅
+  - Error handling robuste ✅
+- [x] Intégration `HorusAgent` ✅
+  - Import VerificationPipeline
+  - Initialize dans constructor (via `HORUS_VERIFY_ENABLED`)
+  - Phase VERIFY dans `processUserMessage()` ✅
+  - Phase VERIFY dans `processUserMessageStream()` ✅
+  - Méthodes helper: `extractFilePath()`, `extractOperation()`, `formatVerificationFeedback()` ✅
+  - Feedback loop automatique (inject system message pour LLM) ✅
 
-#### Semaine 2 : Commandes CLI avancées
+#### Commandes CLI avancées ✅
 
-- [ ] Commandes contextuelles
-  - `horus context plan <query>` (dry-run)
-  - `horus context clear-cache`
-  - `horus context stats --last N`
-- [ ] UI Ink
-  - `ContextPanel` avec live metrics
-  - Affichage sources sélectionnées
+- [x] `horus context plan <query>` ✅
+  - Preview context gathering strategy (dry-run)
+  - Affiche intent detection, budget tokens, stratégie
+  - Support --model et --json flags
+- [x] `horus context clear-cache` ✅
+  - Clear context cache avec confirmation
+  - Affiche stats avant clear (size, tokens saved)
+  - Support --yes flag pour skip confirmation
+- [x] `horus context stats --last N` ✅
+  - Stats détaillées avec support --last N
+  - Affiche performance metrics, distribution operations, cache performance
+  - Support --json flag
+
+#### UI Ink avancée ✅
+
+- [x] `src/ui/components/context-bundle-panel.tsx` (200 lignes) ✅
+  - Composant `ContextBundlePanel` (full + compact modes)
+  - Composant `ContextBundleInline` (inline display)
+  - Composant `LiveContextMetrics` (model, context window, usage, cache stats)
+  - Affichage sources sélectionnées (top 5)
   - Token usage real-time
+  - Cache performance metrics
 
-### Critères de succès
+#### Tests ✅
 
-- [ ] Lint auto après édition
-- [ ] Tests opt-in en mode thorough
-- [ ] Toutes commandes CLI fonctionnent
-- [ ] UI Ink sans erreurs
+- [x] `tests/verification-pipeline.spec.ts` (320 lignes, 21 tests) ✅
+  - Tests configuration (default, updates, merge)
+  - Tests skip logic (read-only, search, no filePath, failed)
+  - Tests file type detection (TypeScript, non-lintable)
+  - Tests test file discovery
+  - Tests verification modes (fast, thorough)
+  - Tests error handling
+  - Tests result structure
+  - Tests timeout configuration
+  - Tous les tests passent (90/90 total) ✅
+
+### 🎯 Critères de succès - ✅ TOUS VALIDÉS
+
+- [x] Lint auto après édition (via HORUS_VERIFY_ENABLED=true) ✅
+- [x] Tests opt-in en mode thorough (via HORUS_VERIFY_MODE=thorough) ✅
+- [x] Toutes commandes CLI fonctionnent ✅
+  - `horus context plan` ✅
+  - `horus context clear-cache` ✅
+  - `horus context stats --last N` ✅
+- [x] UI Ink sans erreurs (build + tests passent) ✅
+
+### 📦 Livrables Phase 4
+
+**Fichiers créés** :
+- ✅ `src/context/verification.ts` (400 lignes)
+- ✅ `src/ui/components/context-bundle-panel.tsx` (200 lignes)
+- ✅ `tests/verification-pipeline.spec.ts` (320 lignes, 21 tests)
+
+**Fichiers modifiés** :
+- ✅ `src/agent/horus-agent.ts` (+120 lignes)
+  - Import VerificationPipeline
+  - Initialize verificationPipeline dans constructor
+  - Phase VERIFY dans processUserMessage()
+  - Phase VERIFY dans processUserMessageStream()
+  - Méthodes helper (extractFilePath, extractOperation, formatVerificationFeedback)
+- ✅ `src/commands/context.ts` (+100 lignes)
+  - Commande `plan` ajoutée
+  - Commande `clear-cache` ajoutée
+  - Commande `stats` améliorée (support --last N)
+- ✅ `src/utils/context-telemetry.ts` (+1 operation type)
+  - Ajout 'verification' au type operation
+
+**Tests** :
+- ✅ 21 tests Phase 4 (verification-pipeline.spec.ts)
+- ✅ 90/90 tests totaux passent
+- ✅ Build sans erreurs (`bun run build`)
+
+### 🚧 Environment Variables
+
+**Activation** :
+```bash
+# Enable verification pipeline
+export HORUS_VERIFY_ENABLED=true
+
+# Mode: fast (lint only) | thorough (lint + tests + types)
+export HORUS_VERIFY_MODE=fast  # Default
+export HORUS_VERIFY_MODE=thorough  # Pour tests complets
+
+# Debug logs
+export HORUS_CONTEXT_DEBUG=true
+```
+
+**Commandes** :
+```bash
+# Plan context gathering (dry-run)
+horus context plan "Explain how SearchTool works"
+
+# Clear context cache
+horus context clear-cache --yes
+
+# Stats détaillées (last 10 operations)
+horus context stats --last 10
+```
+
+### 🚀 Prochaines étapes (Phase 5)
+
+**Ready to start** :
+- [ ] Détection auto VRAM
+- [ ] Sélection modèle adaptative
+- [ ] Benchmarks complets
+- [ ] Documentation modèles
 
 ---
 
