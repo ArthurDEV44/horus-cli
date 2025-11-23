@@ -63,11 +63,10 @@ export class ContextOrchestrator {
     this.searchV2 = new SearchToolV2();
     this.snippetBuilder = new SnippetBuilder();
 
-    // Phase 3: Initialize SubagentManager if enabled
-    const useSubagents = process.env.HORUS_USE_SUBAGENTS === 'true';
+    // Phase 3: Initialize SubagentManager (always enabled, native integration)
     const isSubagentMode = process.env.HORUS_SUBAGENT_MODE === 'true'; // Prevent nesting
 
-    if (useSubagents && !isSubagentMode) {
+    if (!isSubagentMode) {
       this.subagentManager = new SubagentManager({
         apiKey: process.env.HORUS_API_KEY || '',
         baseURL: process.env.OLLAMA_BASE_URL,
@@ -77,7 +76,7 @@ export class ContextOrchestrator {
       });
 
       if (this.debug) {
-        console.error('[ContextOrchestrator] SubagentManager initialized (maxConcurrent: 3)');
+        console.error('[ContextOrchestrator] SubagentManager initialized (native integration, maxConcurrent: 3)');
       }
     }
 
@@ -117,26 +116,12 @@ export class ContextOrchestrator {
       }
     }
 
-    // Phase 2: Use enhanced search if HORUS_USE_SEARCH_V2 is enabled
-    const useSearchV2 = process.env.HORUS_USE_SEARCH_V2 === 'true';
-
-    if (this.debug) {
-      console.error(`[ContextOrchestrator] HORUS_USE_SEARCH_V2=${process.env.HORUS_USE_SEARCH_V2} (useSearchV2=${useSearchV2})`);
-    }
-
+    // Phase 2: Use enhanced search (SearchToolV2) - now native integration
     let sources: ContextSource[];
-    if (useSearchV2) {
-      if (this.debug) {
-        console.error('[ContextOrchestrator] Using enhanced search (SearchToolV2)');
-      }
-      sources = await this.enhancedSearch(request.query, request.intent, this.config.maxSources);
-    } else {
-      // Phase 1: Original agentic search
-      if (this.debug) {
-        console.error('[ContextOrchestrator] Using Phase 1 agentic search (original SearchTool)');
-      }
-      sources = await this.agenticSearch(request.query, budget.available, request);
+    if (this.debug) {
+      console.error('[ContextOrchestrator] Using enhanced search (SearchToolV2, native integration)');
     }
+    sources = await this.enhancedSearch(request.query, request.intent, this.config.maxSources);
 
     // Build and return context bundle
     const bundle: ContextBundle = {

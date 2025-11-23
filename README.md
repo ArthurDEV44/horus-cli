@@ -528,36 +528,48 @@ horus context stats
 horus context status --last 50 | grep "tokens"
 ```
 
-### Système de Contexte Avancé (Phase 2)
+### Système de Contexte Avancé (Phases 1-5) ✨
 
-Horus CLI implémente un système de contexte avancé inspiré de Claude Code pour optimiser la récupération et l'utilisation des informations :
+Horus CLI implémente un système de contexte agentique complet inspiré de Claude Code, **maintenant intégré nativement** :
 
-#### SearchToolV2 - Recherche Intelligente
+#### Fonctionnalités Activées par Défaut
 
-SearchToolV2 offre une recherche de fichiers avancée avec scoring automatique :
+**✅ Phase 1 : ContextOrchestrator**
+- Gestion intelligente du contexte avec cache LRU
+- Détection automatique d'intent (explain, refactor, debug, implement)
+- Budget de tokens adaptatif (30% du contexte par défaut)
 
-**Stratégies de Scoring** :
-- **Modified** : Privilégie les fichiers récemment modifiés (git log <7 jours)
-- **Imports** : Privilégie les fichiers qui importent ou mentionnent les termes recherchés
-- **Fuzzy** : Utilise la distance de Levenshtein pour le matching sur les noms de fichiers
+**✅ Phase 2 : SearchToolV2 + Scoring**
+- Recherche avancée avec scoring automatique
+- Stratégies : Modified (git recency), Imports, Fuzzy matching
+- Compression structurelle via SnippetBuilder (~47% réduction tokens)
 
-**Activation** :
+**✅ Phase 3 : SubagentManager**
+- Parallélisation automatique des tâches (max 3 concurrent)
+- Détection de patterns : "all files", "tous les fichiers", etc.
+- Isolation contextuelle pour éviter la contamination
+
+**✅ Phase 4 : VerificationPipeline**
+- Validation automatique post-édition (lint)
+- Mode thorough optionnel : lint + tests + type checking
+- Feedback automatique pour correction
+
+**✅ Phase 5 : Model Selection**
+- Détection VRAM automatique (NVIDIA, AMD, Apple Silicon)
+- Sélection adaptative du modèle optimal
+- Default: mistral-small (22B, 32K context)
+
+**Activation du debug** :
 ```bash
-# Activer SearchToolV2 (expérimental)
-export HORUS_USE_SEARCH_V2=true
-horus
-
-# Avec debug pour voir le scoring
+# Voir le système en action
 export HORUS_CONTEXT_DEBUG=true
-export HORUS_USE_SEARCH_V2=true
 horus
-```
 
-**Exemple de sortie debug** :
-```
+# Exemple de sortie
 [ContextOrchestrator] Enhanced search with strategy: modified
-[ContextOrchestrator] Keywords: contextorchestrator
 [SearchV2] Scanned: 245, Matched: 5, Duration: 156ms, Tokens: 1250
+[SubagentManager] Spawned 3 parallel subagents for task
+[VerificationPipeline] Lint check: ✓ PASSED (142ms)
 ```
 
 #### SnippetBuilder - Compression Structurelle
