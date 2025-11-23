@@ -5,7 +5,7 @@
 
 export interface ContextMetrics {
   // Operation identification
-  operation: 'search' | 'view' | 'edit' | 'create';
+  operation: 'search' | 'view' | 'edit' | 'create' | 'verification';
   timestamp: number;
 
   // Performance metrics
