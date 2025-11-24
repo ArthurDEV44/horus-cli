@@ -9,6 +9,7 @@ import { getSettingsManager } from "./utils/settings-manager.js";
 import { ConfirmationService } from "./utils/confirmation-service.js";
 import { createMCPCommand } from "./commands/mcp.js";
 import { createContextCommand } from "./commands/context.js";
+import { createInitCommand } from "./commands/init.js";
 import { getRecommendedModel } from "./horus/model-selector.js";
 import type { ChatCompletionMessageParam } from "openai/resources/chat";
 
@@ -543,5 +544,8 @@ program.addCommand(createMCPCommand());
 
 // Context command
 program.addCommand(createContextCommand());
+
+// Init command
+program.addCommand(createInitCommand());
 
 program.parse();
