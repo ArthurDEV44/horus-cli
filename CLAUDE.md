@@ -666,7 +666,7 @@ HORUS_SUBAGENT_MODE=true              # Internal flag (prevents nesting)
 # API Configuration
 HORUS_API_KEY=your_api_key            # Ollama doesn't need this
 HORUS_BASE_URL=http://localhost:11434/v1  # Default Ollama
-HORUS_MODEL=mistral-small             # Default model (Phase 5)
+HORUS_MODEL=devstral:24b              # Default model (Phase 5: Best for agentic coding)
 MORPH_API_KEY=your_morph_key          # Optional Fast Apply
 ```
 

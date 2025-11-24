@@ -76,9 +76,9 @@ export const MISTRAL_MODELS = {
     vramMin: 32,
     vramRecommended: 40,
     speed: 2,
-    quality: 4,
-    description: 'Deep analysis with long context',
-    useCases: ['Longs contextes', 'Sessions multi-heures', 'Deep debugging'],
+    quality: 5, // Best for agentic coding (SWE-Bench 46.8%)
+    description: '🏆 RECOMMENDED: Best for agentic coding & codebase exploration',
+    useCases: ['Agentic coding', 'Codebase exploration', 'Multi-file editing', 'SWE tasks'],
   },
 } as const;
 
@@ -200,7 +200,7 @@ export function selectOptimalModel(
  *
  * Profiles:
  * - fast: mistral (7B)
- * - balanced: mistral-small (22B) [DEFAULT]
+ * - balanced: devstral:24b (24B, 128K) [DEFAULT] 🏆
  * - powerful: mixtral (8x7B)
  * - deep: devstral:24b (24B, 128K)
  *
@@ -214,7 +214,7 @@ export function selectModelByProfile(
 ): ModelRecommendation {
   const modelMap: Record<ModelProfile, keyof typeof MISTRAL_MODELS> = {
     fast: 'mistral',
-    balanced: 'mistral-small',
+    balanced: 'devstral:24b', // UPDATED: Best for agentic coding (SWE-Bench 46.8%)
     powerful: 'mixtral',
     deep: 'devstral:24b',
   };
