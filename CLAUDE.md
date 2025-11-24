@@ -2,7 +2,7 @@
 
 > **Project**: Horus CLI - An open-source AI agent CLI with advanced context management and tool integration
 > **Version**: 0.0.33
-> **Last Updated**: 2025-01-23
+> **Last Updated**: 2025-11-24
 > **Repository**: https://github.com/ArthurDEV44/horus-cli
 
 ---
@@ -66,22 +66,29 @@ Horus CLI is a **local-first AI coding assistant** that runs in your terminal, p
 └───────────────────────┬─────────────────────────────────────┘
                         │
 ┌───────────────────────▼─────────────────────────────────────┐
-│                  HorusAgent (Core)                          │
-│  - Event-driven orchestration                               │
-│  - Message history management                               │
+│              HorusAgent (Main Orchestrator)                 │
+│  - Event-driven architecture (EventEmitter)                 │
+│  - Message history & chat state management                  │
 │  - Tool execution loop (max 400 rounds)                     │
+│  - Coordinates modular components via:                      │
+│    • ToolExecutor (executes tools)                          │
+│    • StreamingManager (handles streaming)                   │
+│    • MessageParser (formats messages)                       │
+│    • ContextIntegrator (injects context)                    │
+│    • GatherPhase (Phase 1: gather context)                  │
+│    • VerifyPhase (Phase 3: validate changes)                │
 └───────────────────────┬─────────────────────────────────────┘
                         │
         ┌───────────────┼───────────────┐
         │               │               │
 ┌───────▼───────┐ ┌────▼──────┐ ┌──────▼────────┐
 │ GATHER Phase  │ │ ACT Phase │ │ VERIFY Phase  │
-│ (Context)     │ │ (Tools)   │ │ (Validation)  │
+│ (GatherPhase) │ │(ToolExec) │ │(VerifyPhase)  │
 └───────┬───────┘ └────┬──────┘ └──────┬────────┘
         │              │               │
 ┌───────▼──────────────▼───────────────▼────────┐
-│         ContextOrchestrator (Optional)        │
-│  - Intent detection                           │
+│         ContextOrchestrator (Native)          │
+│  - Intent detection (explain/refactor/debug)  │
 │  - Context gathering strategies               │
 │  - Cache management (LRU + file watching)     │
 │  - Subagent spawning (max 3 parallel)         │
@@ -126,13 +133,20 @@ const contextCache = getContextCache();           // Singleton
 const mcpManager = getMCPManager();              // Singleton
 ```
 
-#### 3. Feature Flag Pattern
+#### 3. Modular Component Pattern
 ```typescript
-// Progressive rollout with environment variables
-const contextMode = process.env.HORUS_CONTEXT_MODE; // 'off' | 'mvp' | 'full'
-const useSearchV2 = process.env.HORUS_USE_SEARCH_V2 === 'true';
-const useSubagents = process.env.HORUS_USE_SUBAGENTS === 'true';
-const verifyEnabled = process.env.HORUS_VERIFY_ENABLED === 'true';
+// HorusAgent delegates to specialized components
+class HorusAgent extends EventEmitter {
+  private toolExecutor: ToolExecutor;        // Tool execution
+  private streamingManager: StreamingManager; // Streaming responses
+  private messageParser: MessageParser;       // Message formatting
+  private contextIntegrator: ContextIntegrator; // Context injection
+  private gatherPhase: GatherPhase;          // GATHER phase
+  private verifyPhase: VerifyPhase;          // VERIFY phase
+
+  // All phases (gather-act-verify) are now natively integrated
+  // Previously feature-flagged, now always active
+}
 ```
 
 #### 4. Tool Interface Pattern
@@ -186,9 +200,18 @@ async processUserMessage(message: string) {
 horus-cli/
 ├── src/                          # Source code (TypeScript)
 │   ├── index.ts                  # CLI entry point (520+ LOC)
-│   ├── agent/                    # Core agent logic
-│   │   ├── horus-agent.ts        # Main agent class (1200+ LOC)
-│   │   └── index.ts              # Exports
+│   ├── agent/                    # Core agent logic (modular architecture)
+│   │   ├── horus-agent.ts        # Main orchestrator (705 LOC, refactored)
+│   │   ├── index.ts              # Exports
+│   │   ├── core/                 # Core functionality modules (787 LOC total)
+│   │   │   ├── tool-executor.ts      # Tool execution (172 LOC)
+│   │   │   ├── streaming-manager.ts  # Streaming responses (218 LOC)
+│   │   │   ├── message-parser.ts     # Message formatting (135 LOC)
+│   │   │   ├── context-integrator.ts # Context injection (107 LOC)
+│   │   │   └── system-prompt.ts      # System prompt builder (155 LOC)
+│   │   └── phases/               # Phase implementations (143 LOC total)
+│   │       ├── gather-phase.ts       # GATHER phase (63 LOC)
+│   │       └── verify-phase.ts       # VERIFY phase (80 LOC)
 │   ├── commands/                 # CLI commands
 │   │   ├── context.ts            # Context telemetry CLI (174 LOC)
 │   │   └── mcp.ts                # MCP server management
@@ -224,11 +247,14 @@ horus-cli/
 │   │   │   └── design-system.ts
 │   │   └── app.tsx
 │   ├── utils/                    # Utility modules
-│   │   ├── settings-manager.ts   # User settings
+│   │   ├── settings-manager.ts   # User & project settings
 │   │   ├── token-counter.ts      # Token estimation
-│   │   ├── confirmation-service.ts
+│   │   ├── confirmation-service.ts # User confirmations
 │   │   ├── context-telemetry.ts  # Metrics collection
-│   │   └── ... (4 more)
+│   │   ├── model-config.ts       # Model configuration
+│   │   ├── system-info.ts        # System detection (VRAM/RAM)
+│   │   ├── custom-instructions.ts # Custom user instructions
+│   │   └── text-utils.ts         # Text formatting utilities
 │   └── types/                    # TypeScript definitions
 │       ├── context.ts            # Context system types (263 LOC)
 │       └── index.ts              # General types
@@ -239,7 +265,9 @@ horus-cli/
 │   ├── search-v2.spec.ts
 │   ├── snippet-builder.spec.ts
 │   ├── subagent-manager.spec.ts
-│   └── context-telemetry.spec.ts
+│   ├── context-telemetry.spec.ts
+│   ├── model-selector.spec.ts    # Model selection tests
+│   └── system-info.spec.ts       # System detection tests
 ├── docs/                         # Documentation
 │   ├── telemetry-api.md
 │   └── subagent-architecture.md
@@ -259,17 +287,55 @@ horus-cli/
 ### Key Modules
 
 #### Core Agent (`src/agent/horus-agent.ts`)
-- **Purpose**: Main orchestration engine
+- **Purpose**: Main orchestration engine (refactored to 705 LOC)
 - **Responsibilities**:
   - Manages chat history and message state
-  - Orchestrates tool execution (up to 400 rounds)
-  - Integrates context orchestrator (gather phase)
-  - Implements streaming responses
+  - Coordinates modular components (ToolExecutor, StreamingManager, etc.)
+  - Orchestrates gather-act-verify loop (up to 400 rounds)
   - Token counting and budget management
 - **Key Methods**:
   - `processUserMessage()`: Main processing loop
-  - `executeToolCall()`: Individual tool execution
-  - `injectContextBundle()`: Context injection
+  - `executeToolCall()`: Delegates to ToolExecutor
+  - **Architecture**: Now delegates to specialized components instead of monolithic implementation
+
+#### Agent Core Modules (`src/agent/core/`)
+
+**ToolExecutor** (`tool-executor.ts` - 172 LOC)
+- **Purpose**: Centralized tool execution
+- **Responsibilities**: Execute all built-in and MCP tools, parse arguments, handle errors
+- **Key Methods**: `executeTool()`, `executeMCPTool()`
+
+**StreamingManager** (`streaming-manager.ts` - 218 LOC)
+- **Purpose**: Handles streaming responses from LLM
+- **Responsibilities**: Process streaming chunks, emit events, manage state
+- **Key Methods**: `handleStreamingResponse()`, `emitChunk()`
+
+**MessageParser** (`message-parser.ts` - 135 LOC)
+- **Purpose**: Message formatting and parsing
+- **Responsibilities**: Format verification feedback, extract file paths, parse operations
+- **Key Methods**: `formatVerificationFeedback()`, `extractFilePath()`
+
+**ContextIntegrator** (`context-integrator.ts` - 107 LOC)
+- **Purpose**: Context bundle injection
+- **Responsibilities**: Build context requests with budget management, inject context into messages
+- **Key Methods**: `buildContextRequest()`, `injectContextBundle()`
+
+**SystemPrompt** (`system-prompt.ts` - 155 LOC)
+- **Purpose**: System prompt generation
+- **Responsibilities**: Build comprehensive system prompt with multilingual support
+- **Key Functions**: `buildSystemPrompt(options)`
+
+#### Agent Phase Modules (`src/agent/phases/`)
+
+**GatherPhase** (`gather-phase.ts` - 63 LOC)
+- **Purpose**: GATHER phase of gather-act-verify loop
+- **Responsibilities**: Orchestrate context gathering via ContextOrchestrator
+- **Key Methods**: `gather()`, `getCacheStats()`, `clearCache()`
+
+**VerifyPhase** (`verify-phase.ts` - 80 LOC)
+- **Purpose**: VERIFY phase of gather-act-verify loop
+- **Responsibilities**: Validate tool execution results (lint, tests, types)
+- **Key Methods**: `verify()`, format verification feedback
 
 #### Context Orchestrator (`src/context/orchestrator.ts`)
 - **Purpose**: Intelligent context gathering
@@ -1054,6 +1120,8 @@ describe('Feature Name', () => {
 | `snippet-builder.spec.ts` | 8 | Compression, extraction |
 | `subagent-manager.spec.ts` | 14 | Parallel execution, batching |
 | `context-telemetry.spec.ts` | 8 | Metrics collection |
+| `model-selector.spec.ts` | New | Model selection logic |
+| `system-info.spec.ts` | New | VRAM/RAM detection |
 | **Total** | **90+** | **100% pass rate** |
 
 ### Testing Best Practices
@@ -1338,6 +1406,28 @@ bun run dev
 
 ## Performance Optimization
 
+### System Detection
+
+```typescript
+// Auto-detect system capabilities for optimal model selection
+import { detectAvailableVRAM, getSystemInfo } from "../utils/system-info.js";
+import { getCurrentModel } from "../utils/model-config.js";
+
+// Detect VRAM (supports NVIDIA, AMD, Apple Silicon)
+const vramGB = await detectAvailableVRAM(); // Returns GB
+
+// Get full system snapshot
+const sysInfo = await getSystemInfo();
+console.log(`VRAM: ${sysInfo.vram}GB, RAM: ${sysInfo.ram}GB`);
+console.log(`GPU: ${sysInfo.gpuType} - ${sysInfo.gpuName}`);
+
+// Strategy:
+// 1. Try nvidia-smi (NVIDIA GPUs)
+// 2. Try rocm-smi (AMD GPUs)
+// 3. Try system_profiler (Apple Silicon)
+// 4. Fallback: estimate from system RAM (conservative 50%)
+```
+
 ### Context Window Management
 
 ```typescript
@@ -1347,7 +1437,7 @@ import { getModelMaxContext } from "../horus/model-configs.js";
 const maxContext = getModelMaxContext('devstral:24b'); // 128000 tokens
 const budget = maxContext * 0.3; // 30% for context
 
-// Adjust based on VRAM
+// Adjust based on detected VRAM
 // <8GB: 4K context
 // 8-16GB: 8K context
 // 16-32GB: 32K context
@@ -1408,15 +1498,23 @@ const subagent = new HorusAgent(apiKey, baseURL, model, 50); // 50 rounds vs 400
 - ✅ **Phase 2**: SearchToolV2 + scoring (100%)
 - ✅ **Phase 3**: SubagentManager (100%)
 - ✅ **Phase 4**: Verification + UX CLI (100%)
-- ⏸️ **Phase 5**: Model tuning (0% - pending)
+- ⏸️ **Phase 5**: Model tuning (60% - in progress)
+  - ✅ System detection (VRAM/RAM/CPU via `system-info.ts`)
+  - ✅ Model configuration management (`model-config.ts`)
+  - ✅ Settings manager integration
+  - ⏸️ Adaptive model selection (pending)
+  - ⏸️ Benchmark suite (pending)
+- ✅ **Refactoring**: Modular agent architecture (100%)
+  - Extracted `horus-agent.ts` into 7 specialized modules
+  - Created `agent/core/` and `agent/phases/` directories
+  - Reduced main agent from 1200+ LOC to 705 LOC
 
 ### Next Steps
 
-1. **Phase 5**: Model selection optimization
-   - Auto-detect VRAM
-   - Adaptive model selection
-   - Benchmark suite
-   - Update default to `mistral-small`
+1. **Phase 5 Completion**: Adaptive model selection
+   - Implement auto-detection workflow (VRAM → optimal model)
+   - Create benchmark suite for model performance
+   - Finalize default model selection logic
 
 2. **Future Enhancements**:
    - MCP server templates
@@ -1457,6 +1555,6 @@ const subagent = new HorusAgent(apiKey, baseURL, model, 50); // 50 rounds vs 400
 
 ---
 
-**Last Updated**: 2025-01-23
+**Last Updated**: 2025-11-24
 **Maintained By**: Claude Code + Horus CLI Team
 **License**: MIT
