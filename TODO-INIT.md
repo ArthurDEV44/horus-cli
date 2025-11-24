@@ -3,8 +3,9 @@
 > **Objectif** : Implémenter une commande `/init` qui génère/met à jour automatiquement un fichier `HORUS.md` documentant le codebase pour les assistants IA.
 
 **Estimation totale** : 20-28 heures
-**État** : 🔴 Non commencé
+**État** : 🟡 En cours (Phase 1 terminée)
 **Date de création** : 2025-11-24
+**Dernière mise à jour** : 2025-11-24
 
 ---
 
@@ -12,7 +13,7 @@
 
 | Phase | Tâches | Durée | État |
 |-------|--------|-------|------|
-| **Phase 1** | Infrastructure de base | 2-3h | 🔴 À faire |
+| **Phase 1** | Infrastructure de base | 2-3h | 🟢 Terminé |
 | **Phase 2** | Scanner | 3-4h | 🔴 À faire |
 | **Phase 3** | Detector | 2-3h | 🔴 À faire |
 | **Phase 4** | Generator | 4-5h | 🔴 À faire |
@@ -25,72 +26,56 @@
 
 ---
 
-## Phase 1 : Infrastructure de Base (2-3h)
+## Phase 1 : Infrastructure de Base (2-3h) ✅
 
 **Objectif** : Créer la structure de base du module `init`
+**État** : 🟢 Terminé (2025-11-24)
+**Commit** : `bfbdf4d` - feat(init): implement Phase 1 - Infrastructure for /init command
 
 ### Tâches
 
-- [ ] **1.1** Créer le dossier `src/init/`
-- [ ] **1.2** Créer `src/init/types.ts` avec toutes les interfaces
+- [x] **1.1** Créer le dossier `src/init/`
+- [x] **1.2** Créer `src/init/types.ts` avec toutes les interfaces
   ```typescript
   // InitConfig, ScanResult, DetectionResult, GenerationContext, etc.
   ```
-- [ ] **1.3** Créer `src/init/scanner.ts` (fonctions vides avec signatures)
-  ```typescript
-  export async function scanPackageJson(): Promise<PackageMetadata> { /* TODO */ }
-  export async function scanTsConfig(): Promise<TsConfigMetadata | null> { /* TODO */ }
-  export async function scanGitMetadata(): Promise<GitMetadata> { /* TODO */ }
-  export async function scanDirectoryStructure(): Promise<DirectoryStructure> { /* TODO */ }
-  export async function scanCodebaseStats(): Promise<CodebaseMetadata> { /* TODO */ }
-  ```
-- [ ] **1.4** Créer `src/init/detector.ts` (fonctions vides avec signatures)
-  ```typescript
-  export function detectFrameworks(scan: ScanResult): string[] { /* TODO */ }
-  export function detectArchitecture(scan: ScanResult): string | null { /* TODO */ }
-  export function detectConventions(scan: ScanResult): ProjectConventions { /* TODO */ }
-  export function detectTestFramework(scan: ScanResult): string | null { /* TODO */ }
-  ```
-- [ ] **1.5** Créer `src/init/generator.ts` (fonctions vides)
-  ```typescript
-  export function generateFromTemplate(ctx: GenerationContext): string { /* TODO */ }
-  export function generateTechStackTable(ctx: GenerationContext): string { /* TODO */ }
-  export function generateDirectoryTree(structure: DirectoryStructure): string { /* TODO */ }
-  export function generateArchitectureDiagram(arch: string): string { /* TODO */ }
-  export function generateQuickStart(pkg: PackageMetadata): string { /* TODO */ }
-  ```
-- [ ] **1.6** Créer `src/init/updater.ts` (fonctions vides)
-  ```typescript
-  export function parseExistingFile(path: string): Promise<ParsedHorusFile> { /* TODO */ }
-  export function extractPreserveSections(parsed: ParsedHorusFile): Map<string, string> { /* TODO */ }
-  export function mergeContent(old: ParsedHorusFile, new: string): string { /* TODO */ }
-  export function writeUpdatedFile(path: string, content: string): Promise<void> { /* TODO */ }
-  ```
-- [ ] **1.7** Créer `src/init/index.ts` pour exporter les modules
-- [ ] **1.8** Créer `src/commands/init.ts` avec commande CLI de base
-  ```typescript
-  export function createInitCommand(): Command {
-    const initCmd = new Command("init");
-    initCmd
-      .description("Generate or update HORUS.md documentation")
-      .option("-f, --force", "Force full regeneration")
-      .option("--no-preserve", "Don't preserve custom sections")
-      .option("-o, --output <file>", "Output file", "HORUS.md")
-      .option("-v, --verbose", "Verbose output")
-      .action(async (options) => {
-        console.log("🚧 Init command not yet implemented");
-      });
-    return initCmd;
-  }
-  ```
-- [ ] **1.9** Intégrer dans `src/index.ts`
-  ```typescript
-  import { createInitCommand } from "./commands/init.js";
-  program.addCommand(createInitCommand());
-  ```
-- [ ] **1.10** Test de smoke : vérifier que `horus init --help` fonctionne
+- [x] **1.3** Créer `src/init/scanner.ts` (fonctions vides avec signatures)
+  - ✅ 6 fonctions de scan avec JSDoc complète (139 LOC)
+  - ✅ scanPackageJson, scanTsConfig, scanGitMetadata
+  - ✅ scanDirectoryStructure, scanCodebaseStats, scanExistingDocs
+  - ✅ scanRepository orchestrator
+- [x] **1.4** Créer `src/init/detector.ts` (fonctions vides avec signatures)
+  - ✅ 5 fonctions de détection avec JSDoc (144 LOC)
+  - ✅ detectFrameworks, detectArchitecture, detectConventions
+  - ✅ detectTestFramework, detectBuildTool, detectAll orchestrator
+  - ✅ Helper functions: hasDependency, hasFile, hasDirectories, hasScript
+- [x] **1.5** Créer `src/init/generator.ts` (fonctions vides)
+  - ✅ 9 fonctions de génération (165 LOC)
+  - ✅ generateFromTemplate, generateTechStackTable, generateDirectoryTree
+  - ✅ generateArchitectureDiagram, generateQuickStart
+  - ✅ Utility formatters: replacePlaceholders, formatList, formatTable, formatCodeBlock
+- [x] **1.6** Créer `src/init/updater.ts` (fonctions vides)
+  - ✅ 9 fonctions de mise à jour (155 LOC)
+  - ✅ parseExistingFile, extractPreserveSections, mergeContent
+  - ✅ mergeSections, writeUpdatedFile, detectChanges
+  - ✅ getSectionStrategy, validateMarkdown, countLines, countSections
+- [x] **1.7** Créer `src/init/index.ts` pour exporter les modules
+  - ✅ Exports complets de tous les types et fonctions (75 LOC)
+- [x] **1.8** Créer `src/commands/init.ts` avec commande CLI de base
+  - ✅ Commande complète avec toutes les options (72 LOC)
+  - ✅ Options: --force, --no-preserve, --no-git, --output, --verbose, --max-depth
+  - ✅ Configuration validation
+  - ✅ Placeholder pour orchestrator (Phase 6)
+- [x] **1.9** Intégrer dans `src/index.ts`
+  - ✅ Import createInitCommand
+  - ✅ program.addCommand(createInitCommand())
+- [x] **1.10** Test de smoke : vérifier que `horus init --help` fonctionne
+  - ✅ Build sans erreurs (tsc)
+  - ✅ `horus init --help` affiche l'aide correctement
+  - ✅ `horus init --verbose` affiche la configuration
 
-**Résultat attendu** : Structure de base créée, commande CLI fonctionnelle (sans implémentation)
+**Résultat attendu** : ✅ Structure de base créée, commande CLI fonctionnelle (sans implémentation)
+**Résultat obtenu** : ✅ ~1022 lignes d'infrastructure, build OK, smoke tests OK
 
 ---
 
@@ -617,10 +602,23 @@ src/init/
 ## 🔄 Changelog
 
 ### 2025-11-24
-- ✅ Création du fichier TODO-INIT.md
-- 🔴 Phase 1-8 : À faire
+
+#### Création et Phase 1
+- ✅ Création du fichier TODO-INIT.md (626 lignes)
+- ✅ Création du fichier ROADMAP-INIT.md (527 lignes)
+- ✅ Création du fichier SYSTEME_INIT_CLAUDE_CODE.md (2063 lignes)
+- ✅ **Phase 1 terminée** (2-3h)
+  - ✅ Structure modulaire complète (src/init/)
+  - ✅ 5 modules créés: types, scanner, detector, generator, updater (951 LOC)
+  - ✅ Commande CLI avec toutes les options (72 LOC)
+  - ✅ Intégration dans src/index.ts
+  - ✅ Build sans erreurs
+  - ✅ Smoke tests passent
+  - ✅ Commit: `bfbdf4d` - feat(init): implement Phase 1 - Infrastructure
+- 🔴 Phase 2-8 : À faire
 
 ---
 
 **Dernière mise à jour** : 2025-11-24
 **Mainteneur** : Claude Code + Horus CLI Team
+**Progression** : Phase 1/8 terminée (12.5%)
