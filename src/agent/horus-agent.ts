@@ -23,7 +23,8 @@ import type { IntentType } from "../types/context.js";
 
 // Import new modular components
 import { ToolExecutor } from "./core/tool-executor.js";
-import { StreamingManager, StreamingChunk } from "./core/streaming-manager.js";
+import { StreamingManager } from "./core/streaming-manager.js";
+import type { StreamingChunk } from "./core/streaming-manager.js";
 import { MessageParser } from "./core/message-parser.js";
 import { ContextIntegrator } from "./core/context-integrator.js";
 import { GatherPhase } from "./phases/gather-phase.js";
