@@ -59,7 +59,7 @@ export class HorusAgent extends EventEmitter {
   private chatHistory: ChatEntry[] = [];
   private messages: HorusMessage[] = [];
   private tokenCounter: TokenCounter;
-  private mcpInitialized: boolean = false;
+  private mcpInitialized = false;
   private maxToolRounds: number;
   private currentModel: string;
 

@@ -622,7 +622,7 @@ export class ContextOrchestrator {
   async enhancedSearch(
     query: string,
     intent: IntentType,
-    maxResults: number = 5
+    maxResults = 5
   ): Promise<ContextSource[]> {
     // Determine scoring strategy based on intent
     const scoreStrategy = this.selectScoringStrategy(intent);

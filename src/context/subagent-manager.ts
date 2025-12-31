@@ -90,7 +90,7 @@ export interface SubagentManagerConfig {
  */
 export class SubagentManager {
   private config: Required<SubagentManagerConfig>;
-  private activeSubagents: Set<Promise<SubagentResult>> = new Set();
+  private activeSubagents = new Set<Promise<SubagentResult>>();
   private telemetry = ContextTelemetry.getInstance();
 
   constructor(config: SubagentManagerConfig) {

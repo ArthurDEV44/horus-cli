@@ -157,8 +157,7 @@ function parseArguments(rawArgs: string): string[] {
   let inQuote = false;
   let quoteChar = '';
 
-  for (let i = 0; i < rawArgs.length; i++) {
-    const char = rawArgs[i];
+  for (const char of rawArgs) {
 
     if (!inQuote && (char === '"' || char === "'")) {
       inQuote = true;

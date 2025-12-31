@@ -16,8 +16,8 @@ import { loadAllCustomCommands } from './loader.js';
 import { parseCommandInput, substituteArguments } from './parser.js';
 
 // Built-in commands will be registered here
-const builtinCommands: Map<string, SlashCommand> = new Map();
-const customCommands: Map<string, SlashCommand> = new Map();
+const builtinCommands = new Map<string, SlashCommand>();
+const customCommands = new Map<string, SlashCommand>();
 
 let lastCustomRefresh = 0;
 const REFRESH_INTERVAL = 5000; // Refresh custom commands every 5 seconds
@@ -51,8 +51,8 @@ function customToSlashCommand(custom: LoadedCustomCommand): SlashCommand {
  * Refresh custom commands from disk
  */
 export async function refreshCustomCommands(
-  cwd: string = process.cwd(),
-  force: boolean = false
+  cwd = process.cwd(),
+  force = false
 ): Promise<void> {
   const now = Date.now();
 
@@ -110,7 +110,7 @@ export function getAllCommands(): SlashCommand[] {
  * Get command suggestions for autocomplete
  */
 export function getCommandSuggestions(
-  input: string = ''
+  input = ''
 ): CommandSuggestion[] {
   const prefix = input.startsWith('/') ? input.substring(1).toLowerCase() : '';
   const commands = getAllCommands();

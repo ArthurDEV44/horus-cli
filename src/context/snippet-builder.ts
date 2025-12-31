@@ -298,7 +298,7 @@ export class SnippetBuilder {
   private formatSnippet(
     filePath: string,
     header: string[],
-    omitted: number = 0,
+    omitted = 0,
     footer: string[] = []
   ): string {
     const parts: string[] = [];

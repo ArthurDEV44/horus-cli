@@ -255,7 +255,7 @@ export class ContextCache {
       this.dependencyGraph.set(normalizedImported, new Set());
     }
 
-    this.dependencyGraph.get(normalizedImported)!.add(normalizedFile);
+    this.dependencyGraph.get(normalizedImported)?.add(normalizedFile);
 
     if (this.config.debug) {
       console.error(`[ContextCache] Registered dependency: ${filePath} -> ${importedPath}`);
