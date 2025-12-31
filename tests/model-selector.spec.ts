@@ -116,7 +116,8 @@ describe('ModelSelector', () => {
     });
 
     it('should include reason for user selection', () => {
-      const recommendation = selectModelByProfile('balanced', 16);
+      // Use 32GB VRAM to avoid fallback (devstral:24b needs 32GB)
+      const recommendation = selectModelByProfile('balanced', 32);
       expect(recommendation.reason).toContain('User-selected profile');
     });
   });

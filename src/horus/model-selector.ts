@@ -224,18 +224,26 @@ export function selectModelByProfile(
 
   // Check VRAM requirements
   if (availableVRAM < model.vramMin) {
-    // Fallback to next lower tier
-    const fallbackOrder: ModelProfile[] = ['fast', 'balanced', 'powerful', 'deep'];
-    const currentIndex = fallbackOrder.indexOf(profile);
+    // Fallback to models ordered by VRAM (descending), not by profile name
+    // This ensures we try the best model that fits available VRAM
+    const vramOrderedModels: Array<{ model: keyof typeof MISTRAL_MODELS; profile: ModelProfile }> = [
+      { model: 'devstral:24b', profile: 'deep' },      // 32GB
+      { model: 'mixtral', profile: 'powerful' },       // 24GB
+      { model: 'mistral-small', profile: 'balanced' }, // 12GB
+      { model: 'mistral', profile: 'fast' },           // 4GB
+    ];
 
-    if (currentIndex > 0) {
-      // Try next lower tier (go backwards in array)
-      for (let i = currentIndex - 1; i >= 0; i--) {
-        const fallbackProfile = fallbackOrder[i];
-        const fallbackModel = MISTRAL_MODELS[modelMap[fallbackProfile]];
-        if (availableVRAM >= fallbackModel.vramMin) {
-          return selectModelByProfile(fallbackProfile, availableVRAM);
-        }
+    for (const fallback of vramOrderedModels) {
+      const fallbackModel = MISTRAL_MODELS[fallback.model];
+      if (availableVRAM >= fallbackModel.vramMin) {
+        return {
+          modelName: fallbackModel.name,
+          profile: fallback.profile,
+          maxContext: fallbackModel.context,
+          vramRequired: fallbackModel.vramMin,
+          reason: `Fallback from ${model.name} (${profile}) due to VRAM limit`,
+          alternatives: [],
+        };
       }
     }
 
