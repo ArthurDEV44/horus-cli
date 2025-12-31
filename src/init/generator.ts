@@ -1,236 +1,175 @@
 /**
- * Generator module for /init command
- * Generates HORUS.md documentation from templates and scan results
+ * Generator module for /init command - Version simplifiée
+ * Generates a concise HORUS.md file (~30 lines)
  */
 
-import type {
-  GenerationContext,
-  DirectoryStructure,
-  PackageMetadata,
-} from "./types.js";
+import type { ScanResult, InitResult } from "./types.js";
+import { writeFileSync } from "fs";
+import { join } from "path";
 
 // ============================================================================
-// Main Generation
+// Template HORUS.md (~30 lignes)
 // ============================================================================
 
-/**
- * Generates complete HORUS.md content from template
- * @param ctx Generation context with scan and detection results
- * @returns Complete Markdown content
- */
-export function generateFromTemplate(ctx: GenerationContext): string {
-  // TODO: Implement in Phase 4
-  // - Load base template
-  // - Replace all placeholders: [PROJECT_NAME], [VERSION], etc.
-  // - Insert generated sections
-  // - Return complete Markdown
-  throw new Error("generateFromTemplate not yet implemented");
-}
+const HORUS_TEMPLATE = `# HORUS.md
+
+## Build & Dev Commands
+
+{COMMANDS}
+
+## Code Style
+
+{CODE_STYLE}
+
+## Architecture
+
+{ARCHITECTURE}
+
+## Key Patterns
+
+{PATTERNS}
+`;
 
 // ============================================================================
-// Section Generators
-// ============================================================================
-
-/**
- * Generates Tech Stack table
- * @param ctx Generation context
- * @returns Markdown table of tech stack
- */
-export function generateTechStackTable(ctx: GenerationContext): string {
-  // TODO: Implement in Phase 4
-  // Format as Markdown table:
-  // | Component | Technology | Version |
-  // |-----------|-----------|---------|
-  // | **Language** | TypeScript | ^5.0.0 |
-  // | **Runtime** | Node.js | 18+ |
-  // | **Framework** | React | ^19.0.0 |
-  // ...
-  throw new Error("generateTechStackTable not yet implemented");
-}
-
-/**
- * Generates directory tree structure
- * @param structure Directory structure from scan
- * @returns Markdown code block with ASCII tree
- */
-export function generateDirectoryTree(structure: DirectoryStructure): string {
-  // TODO: Implement in Phase 4
-  // Format as code block:
-  // ```
-  // src/
-  // ├── agent/
-  // │   ├── horus-agent.ts
-  // │   └── index.ts
-  // ├── tools/
-  // └── ...
-  // ```
-  throw new Error("generateDirectoryTree not yet implemented");
-}
-
-/**
- * Generates architecture diagram (ASCII art)
- * @param architecture Architecture type detected
- * @returns ASCII art diagram
- */
-export function generateArchitectureDiagram(architecture: string): string {
-  // TODO: Implement in Phase 4
-  // Load diagram template based on architecture:
-  // - agent-based → Agent + Tools + Context diagram
-  // - mvc → Models + Views + Controllers diagram
-  // - clean → Domain + Application + Infrastructure diagram
-  // Return ASCII art as string
-  throw new Error("generateArchitectureDiagram not yet implemented");
-}
-
-/**
- * Generates Quick Start section with commands
- * @param pkg Package metadata
- * @returns Markdown with installation and dev commands
- */
-export function generateQuickStart(pkg: PackageMetadata): string {
-  // TODO: Implement in Phase 4
-  // Extract scripts from package.json
-  // Generate section:
-  // ```bash
-  // # Install
-  // npm install
-  //
-  // # Build
-  // npm run build
-  //
-  // # Test
-  // bun test
-  // ```
-  throw new Error("generateQuickStart not yet implemented");
-}
-
-/**
- * Generates Conventions section with examples
- * @param ctx Generation context
- * @returns Markdown with code examples
- */
-export function generateConventionsSection(ctx: GenerationContext): string {
-  // TODO: Implement in Phase 4
-  // Generate examples based on detected conventions:
-  // - ESM → import { X } from "./module.js"
-  // - CommonJS → const X = require('./module')
-  // - Naming → // Files: kebab-case
-  throw new Error("generateConventionsSection not yet implemented");
-}
-
-/**
- * Generates Testing section
- * @param ctx Generation context
- * @returns Markdown with test framework info
- */
-export function generateTestingSection(ctx: GenerationContext): string {
-  // TODO: Implement in Phase 4
-  // Extract test framework
-  // Generate commands and file patterns
-  // List test files found
-  throw new Error("generateTestingSection not yet implemented");
-}
-
-/**
- * Generates Project Overview section
- * @param ctx Generation context
- * @returns Markdown with project description
- */
-export function generateOverviewSection(ctx: GenerationContext): string {
-  // TODO: Implement in Phase 4
-  // Extract from README.md if available
-  // Use package.json description as fallback
-  // Generate "What is X?" section
-  throw new Error("generateOverviewSection not yet implemented");
-}
-
-/**
- * Generates Development Workflows section
- * @param ctx Generation context
- * @returns Markdown with workflow information
- */
-export function generateWorkflowsSection(ctx: GenerationContext): string {
-  // TODO: Implement in Phase 4
-  // Extract from scripts
-  // Generate development cycle instructions
-  // Include git workflow if detected
-  throw new Error("generateWorkflowsSection not yet implemented");
-}
-
-// ============================================================================
-// Template Utilities
+// Generator principal
 // ============================================================================
 
 /**
- * Replaces placeholders in template string
- * @param template Template string with [PLACEHOLDERS]
- * @param values Object with placeholder values
- * @returns Template with replaced values
+ * Generates HORUS.md content from scan result
  */
-export function replacePlaceholders(
-  template: string,
-  values: Record<string, string>
-): string {
-  // TODO: Implement in Phase 4
-  // Replace all [PLACEHOLDER] with values[PLACEHOLDER]
-  // Handle missing values gracefully
-  throw new Error("replacePlaceholders not yet implemented");
+export function generateHorusMd(scan: ScanResult): string {
+  // Commands section
+  const commands = generateCommandsSection(scan);
+
+  // Code style section
+  const codeStyle = generateCodeStyleSection(scan);
+
+  // Architecture section (simple)
+  const architecture = generateArchitectureSection(scan);
+
+  // Patterns section
+  const patterns = generatePatternsSection(scan);
+
+  // Replace placeholders
+  return HORUS_TEMPLATE
+    .replace("{COMMANDS}", commands)
+    .replace("{CODE_STYLE}", codeStyle)
+    .replace("{ARCHITECTURE}", architecture)
+    .replace("{PATTERNS}", patterns);
 }
 
 /**
- * Formats a list as Markdown
- * @param items Array of items
- * @param ordered Whether to use ordered list (1. 2. 3.) or unordered (-)
- * @returns Markdown list
+ * Generates the commands section
  */
-export function formatList(items: string[], ordered: boolean = false): string {
-  // TODO: Implement in Phase 4
-  if (ordered) {
-    return items.map((item, i) => `${i + 1}. ${item}`).join("\n");
+function generateCommandsSection(scan: ScanResult): string {
+  const lines: string[] = [];
+
+  if (scan.scripts.install) {
+    lines.push(`${scan.scripts.install.padEnd(25)} # Install dependencies`);
   }
-  return items.map((item) => `- ${item}`).join("\n");
+  if (scan.scripts.dev) {
+    lines.push(`${scan.scripts.dev.padEnd(25)} # Dev mode with hot reload`);
+  }
+  if (scan.scripts.build) {
+    lines.push(`${scan.scripts.build.padEnd(25)} # Build for production`);
+  }
+  if (scan.scripts.test) {
+    lines.push(`${scan.scripts.test.padEnd(25)} # Run tests`);
+  }
+  if (scan.scripts.lint) {
+    lines.push(`${scan.scripts.lint.padEnd(25)} # Run linter`);
+  }
+
+  return lines.join("\n");
 }
 
 /**
- * Formats a table as Markdown
- * @param headers Table headers
- * @param rows Table rows (array of arrays)
- * @returns Markdown table
+ * Generates the code style section
  */
-export function formatTable(
-  headers: string[],
-  rows: string[][]
-): string {
-  // TODO: Implement in Phase 4
-  // Generate Markdown table:
-  // | Header 1 | Header 2 |
-  // |----------|----------|
-  // | Value 1  | Value 2  |
-  throw new Error("formatTable not yet implemented");
+function generateCodeStyleSection(scan: ScanResult): string {
+  const lines: string[] = [];
+
+  if (scan.isESM) {
+    lines.push('- ESM imports with .js extension: `import { X } from "./module.js"`');
+  } else {
+    lines.push("- CommonJS: `const X = require('./module')`");
+  }
+
+  if (scan.hasTypeScript) {
+    lines.push("- Files: kebab-case.ts, Classes: PascalCase");
+    if (scan.strictMode) {
+      lines.push("- TypeScript strict mode enabled");
+    }
+  }
+
+  lines.push("- Use async/await over promise chains");
+
+  return lines.join("\n");
 }
 
 /**
- * Wraps content in a code block
- * @param content Code content
- * @param language Language identifier (bash, typescript, etc.)
- * @returns Markdown code block
+ * Generates the architecture section
  */
-export function formatCodeBlock(
+function generateArchitectureSection(scan: ScanResult): string {
+  const deps = scan.keyDependencies;
+
+  // Détecter le type de projet basé sur les dépendances
+  if (deps.includes("ink") || deps.includes("commander")) {
+    return "CLI application with agent-based architecture.\nSee src/ for main modules.";
+  }
+  if (deps.includes("react") || deps.includes("next")) {
+    return "React-based application.\nSee src/components/ for UI components.";
+  }
+  if (deps.includes("express") || deps.includes("fastify")) {
+    return "Web server application.\nSee src/routes/ for API endpoints.";
+  }
+
+  return "See src/ for main source code.";
+}
+
+/**
+ * Generates the patterns section
+ */
+function generatePatternsSection(scan: ScanResult): string {
+  const lines: string[] = [];
+
+  if (scan.hasTypeScript) {
+    lines.push("- Types in src/types/ or inline");
+  }
+
+  if (scan.keyDependencies.length > 0) {
+    const deps = scan.keyDependencies.slice(0, 3).join(", ");
+    lines.push(`- Key deps: ${deps}`);
+  }
+
+  if (scan.scripts.test) {
+    lines.push("- Tests: see tests/ or *.spec.ts files");
+  }
+
+  return lines.length > 0 ? lines.join("\n") : "- See source code for patterns";
+}
+
+// ============================================================================
+// Write to file
+// ============================================================================
+
+/**
+ * Writes HORUS.md to disk
+ */
+export function writeHorusMd(
   content: string,
-  language: string = ""
-): string {
-  return `\`\`\`${language}\n${content}\n\`\`\``;
-}
+  cwd: string,
+  targetFile: string
+): InitResult {
+  const filePath = join(cwd, targetFile);
+  const linesWritten = content.split("\n").length;
 
-/**
- * Generates Table of Contents from section titles
- * @param sections Array of section titles
- * @returns Markdown TOC with anchor links
- */
-export function generateTableOfContents(sections: string[]): string {
-  // TODO: Implement in Phase 4
-  // Generate:
-  // 1. [Section Title](#section-title)
-  // 2. [Another Section](#another-section)
-  throw new Error("generateTableOfContents not yet implemented");
+  writeFileSync(filePath, content, "utf-8");
+
+  return {
+    created: true,
+    filePath,
+    linesWritten,
+    message: `Created ${targetFile} (${linesWritten} lines)`,
+  };
 }

@@ -1,67 +1,81 @@
 /**
- * Init command for Horus CLI
- * Generates or updates HORUS.md documentation file
+ * Init command for Horus CLI - Version simplifiée
+ * Generates HORUS.md documentation file (~30 lines)
  */
 
 import { Command } from "commander";
 import chalk from "chalk";
+import { existsSync } from "fs";
+import { join } from "path";
 import type { InitConfig } from "../init/types.js";
+import { scanRepository } from "../init/scanner.js";
+import { generateHorusMd, writeHorusMd } from "../init/generator.js";
 
 /**
  * Creates the init command
- * @returns Commander command instance
  */
 export function createInitCommand(): Command {
   const initCmd = new Command("init");
 
   initCmd
-    .description("Generate or update HORUS.md documentation for AI assistants")
-    .option("-f, --force", "Force full regeneration (ignore existing file)", false)
-    .option("--no-preserve", "Don't preserve custom sections", true)
-    .option("--no-git", "Skip git metadata extraction", true)
+    .description("Generate HORUS.md documentation for AI assistants (~30 lines)")
+    .option("-f, --force", "Force overwrite if file exists", false)
+    .option("--no-git", "Skip git metadata extraction")
     .option("-o, --output <file>", "Output file name", "HORUS.md")
     .option("-v, --verbose", "Verbose output", false)
-    .option("--max-depth <depth>", "Maximum directory scan depth", "3")
     .action(async (options) => {
-      console.log(chalk.bold.cyan("\n🚀 Initializing repository documentation...\n"));
+      const cwd = process.cwd();
 
-      // Build config from options
+      // Build config
       const config: InitConfig = {
         targetFile: options.output,
-        forceRegenerate: options.force,
-        preserveSections: options.preserve,
-        includeGitHistory: options.git,
-        maxDepth: parseInt(options.maxDepth, 10),
+        force: options.force,
+        includeGit: options.git !== false,
         verbose: options.verbose,
+        cwd,
       };
 
-      if (config.verbose) {
-        console.log(chalk.dim("Configuration:"));
-        console.log(chalk.dim(`  Target file: ${config.targetFile}`));
-        console.log(chalk.dim(`  Force regenerate: ${config.forceRegenerate}`));
-        console.log(chalk.dim(`  Preserve sections: ${config.preserveSections}`));
-        console.log(chalk.dim(`  Include git: ${config.includeGitHistory}`));
-        console.log(chalk.dim(`  Max depth: ${config.maxDepth}\n`));
+      // Check if file already exists
+      const targetPath = join(cwd, config.targetFile);
+      if (existsSync(targetPath) && !config.force) {
+        console.log(chalk.yellow(`\n⚠️  ${config.targetFile} already exists.`));
+        console.log(chalk.dim(`   Use --force to overwrite.\n`));
+        process.exit(1);
       }
 
       try {
-        // TODO: Implement in Phase 6
-        // const orchestrator = new InitOrchestrator(config);
-        // const result = await orchestrator.execute();
+        // Step 1: Scan repository
+        console.log(chalk.cyan("🔍 Scanning codebase..."));
+        const scanResult = scanRepository(config);
 
-        // For now, just show placeholder
-        console.log(chalk.yellow("⚠️  Init command not yet fully implemented"));
-        console.log(chalk.dim("   Phase 1 (Infrastructure) complete"));
-        console.log(chalk.dim("   Next: Implement scanner, detector, generator, updater\n"));
+        if (config.verbose) {
+          console.log(chalk.dim(`   Project: ${scanResult.projectName}`));
+          console.log(chalk.dim(`   TypeScript: ${scanResult.hasTypeScript}`));
+          console.log(chalk.dim(`   ESM: ${scanResult.isESM}`));
+          console.log(chalk.dim(`   Git branch: ${scanResult.gitBranch || "N/A"}`));
+          console.log(chalk.dim(`   Key deps: ${scanResult.keyDependencies.join(", ") || "none"}`));
+        }
 
-        // Placeholder result
-        console.log(chalk.green(`✅ Would generate: ${config.targetFile}`));
-        console.log(chalk.dim("   Configuration validated"));
-        console.log(chalk.dim("   Ready for Phase 2 implementation\n"));
+        // Step 2: Generate content
+        console.log(chalk.cyan("📝 Generating HORUS.md..."));
+        const content = generateHorusMd(scanResult);
 
-      } catch (error: any) {
-        console.error(chalk.red(`\n❌ Error: ${error.message}\n`));
-        if (config.verbose && error.stack) {
+        // Step 3: Write file
+        const result = writeHorusMd(content, cwd, config.targetFile);
+
+        // Success message
+        console.log(chalk.green(`\n✅ ${result.message}`));
+
+        if (config.verbose) {
+          console.log(chalk.dim(`   Path: ${result.filePath}`));
+        }
+
+        console.log("");
+
+      } catch (error: unknown) {
+        const message = error instanceof Error ? error.message : String(error);
+        console.error(chalk.red(`\n❌ Error: ${message}\n`));
+        if (config.verbose && error instanceof Error && error.stack) {
           console.error(chalk.dim(error.stack));
         }
         process.exit(1);

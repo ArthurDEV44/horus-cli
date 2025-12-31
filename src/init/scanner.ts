@@ -1,17 +1,12 @@
 /**
- * Scanner module for /init command
- * Scans the codebase to extract metadata for documentation generation
+ * Scanner module for /init command - Version simplifiée
+ * Scans package.json, tsconfig.json, git, and existing HORUS.md
  */
 
-import type {
-  PackageMetadata,
-  TsConfigMetadata,
-  GitMetadata,
-  CodebaseMetadata,
-  DirectoryStructure,
-  ExistingDocumentation,
-  ScanResult,
-} from "./types.js";
+import { existsSync, readFileSync } from "fs";
+import { join } from "path";
+import { execSync } from "child_process";
+import type { ScanResult, PackageJson, TsConfig, InitConfig } from "./types.js";
 
 // ============================================================================
 // Package.json Scanner
@@ -19,16 +14,104 @@ import type {
 
 /**
  * Scans and parses package.json
- * @returns Package metadata including dependencies, scripts, and project info
- * @throws Error if package.json is not found or invalid
  */
-export async function scanPackageJson(): Promise<PackageMetadata> {
-  // TODO: Implement in Phase 2
-  // - Read package.json from cwd
-  // - Parse JSON
-  // - Extract: name, version, description, main, scripts, deps, devDeps, engines, type
-  // - Handle missing fields gracefully
-  throw new Error("scanPackageJson not yet implemented");
+export function scanPackageJson(cwd: string): {
+  name: string;
+  version: string;
+  scripts: ScanResult["scripts"];
+  isESM: boolean;
+  keyDependencies: string[];
+} {
+  const pkgPath = join(cwd, "package.json");
+
+  if (!existsSync(pkgPath)) {
+    return {
+      name: "unknown",
+      version: "0.0.0",
+      scripts: {},
+      isESM: false,
+      keyDependencies: [],
+    };
+  }
+
+  try {
+    const content = readFileSync(pkgPath, "utf-8");
+    const pkg: PackageJson = JSON.parse(content);
+
+    // Extraire les scripts pertinents
+    const scripts: ScanResult["scripts"] = {};
+    if (pkg.scripts) {
+      if (pkg.scripts.dev) scripts.dev = `${getPackageManager(cwd)} run dev`;
+      if (pkg.scripts.build) scripts.build = `${getPackageManager(cwd)} run build`;
+      if (pkg.scripts.test) scripts.test = `${getPackageManager(cwd)} test`;
+      if (pkg.scripts.lint) scripts.lint = `${getPackageManager(cwd)} run lint`;
+    }
+
+    // Détecter les dépendances clés
+    const allDeps = {
+      ...pkg.dependencies,
+      ...pkg.devDependencies,
+    };
+    const keyDependencies = detectKeyDependencies(allDeps);
+
+    return {
+      name: pkg.name || "unknown",
+      version: pkg.version || "0.0.0",
+      scripts,
+      isESM: pkg.type === "module",
+      keyDependencies,
+    };
+  } catch {
+    return {
+      name: "unknown",
+      version: "0.0.0",
+      scripts: {},
+      isESM: false,
+      keyDependencies: [],
+    };
+  }
+}
+
+/**
+ * Détecte le package manager utilisé
+ */
+function getPackageManager(cwd: string): string {
+  if (existsSync(join(cwd, "bun.lock")) || existsSync(join(cwd, "bun.lockb"))) {
+    return "bun";
+  }
+  if (existsSync(join(cwd, "pnpm-lock.yaml"))) {
+    return "pnpm";
+  }
+  if (existsSync(join(cwd, "yarn.lock"))) {
+    return "yarn";
+  }
+  return "npm";
+}
+
+/**
+ * Détecte les dépendances clés (frameworks, outils)
+ */
+function detectKeyDependencies(deps: Record<string, string>): string[] {
+  const keyPackages = [
+    "react",
+    "vue",
+    "svelte",
+    "angular",
+    "next",
+    "express",
+    "fastify",
+    "nestjs",
+    "commander",
+    "ink",
+    "typescript",
+    "vitest",
+    "jest",
+    "bun",
+  ];
+
+  return Object.keys(deps).filter((dep) =>
+    keyPackages.some((key) => dep.includes(key))
+  );
 }
 
 // ============================================================================
@@ -36,16 +119,42 @@ export async function scanPackageJson(): Promise<PackageMetadata> {
 // ============================================================================
 
 /**
- * Scans and parses tsconfig.json if present
- * @returns TypeScript configuration metadata, or null if not found
+ * Scans and parses tsconfig.json
  */
-export async function scanTsConfig(): Promise<TsConfigMetadata | null> {
-  // TODO: Implement in Phase 2
-  // - Check if tsconfig.json exists
-  // - Parse JSON (handle comments via json5 or strip-json-comments)
-  // - Extract compilerOptions: module, target, strict, paths, outDir
-  // - Return null if file doesn't exist
-  throw new Error("scanTsConfig not yet implemented");
+export function scanTsConfig(cwd: string): {
+  hasTypeScript: boolean;
+  esTarget?: string;
+  strictMode: boolean;
+} {
+  const tsconfigPath = join(cwd, "tsconfig.json");
+
+  if (!existsSync(tsconfigPath)) {
+    return {
+      hasTypeScript: false,
+      strictMode: false,
+    };
+  }
+
+  try {
+    const content = readFileSync(tsconfigPath, "utf-8");
+    // Supprimer les commentaires JSON (// et /* */)
+    const cleanContent = content
+      .replace(/\/\/.*$/gm, "")
+      .replace(/\/\*[\s\S]*?\*\//g, "");
+    const tsconfig: TsConfig = JSON.parse(cleanContent);
+
+    return {
+      hasTypeScript: true,
+      esTarget: tsconfig.compilerOptions?.target,
+      strictMode: tsconfig.compilerOptions?.strict === true,
+    };
+  } catch {
+    // tsconfig existe mais erreur de parsing
+    return {
+      hasTypeScript: true,
+      strictMode: false,
+    };
+  }
 }
 
 // ============================================================================
@@ -53,123 +162,110 @@ export async function scanTsConfig(): Promise<TsConfigMetadata | null> {
 // ============================================================================
 
 /**
- * Scans git metadata (commits, branch, remote)
- * @returns Git metadata including recent commits and repository info
+ * Scans git metadata (branch, remote)
  */
-export async function scanGitMetadata(): Promise<GitMetadata> {
-  // TODO: Implement in Phase 2
-  // - Execute: git remote get-url origin (for repo URL)
-  // - Execute: git rev-parse --abbrev-ref HEAD (for current branch)
-  // - Execute: git log --pretty=format:"%H|%an|%ae|%ad|%s" --date=short -20
-  // - Parse commits into GitCommit[]
-  // - Handle non-git repositories gracefully (return defaults)
-  throw new Error("scanGitMetadata not yet implemented");
+export function scanGitMetadata(cwd: string): {
+  gitBranch?: string;
+  gitRemote?: string;
+} {
+  // Vérifier si c'est un repo git
+  if (!existsSync(join(cwd, ".git"))) {
+    return {};
+  }
+
+  try {
+    // Récupérer la branche courante
+    const branch = execSync("git rev-parse --abbrev-ref HEAD", {
+      cwd,
+      encoding: "utf-8",
+      stdio: ["pipe", "pipe", "pipe"],
+    }).trim();
+
+    // Récupérer l'URL du remote
+    let remote: string | undefined;
+    try {
+      remote = execSync("git remote get-url origin", {
+        cwd,
+        encoding: "utf-8",
+        stdio: ["pipe", "pipe", "pipe"],
+      }).trim();
+    } catch {
+      // Pas de remote configuré
+    }
+
+    return {
+      gitBranch: branch,
+      gitRemote: remote,
+    };
+  } catch {
+    return {};
+  }
 }
 
 // ============================================================================
-// Directory Structure Scanner
+// Existing HORUS.md Scanner
 // ============================================================================
 
 /**
- * Scans directory structure and generates ASCII tree
- * @param maxDepth Maximum depth to scan (default: 3)
- * @returns Directory structure with ASCII tree representation
+ * Checks if HORUS.md exists and returns its content
  */
-export async function scanDirectoryStructure(
-  maxDepth: number = 3
-): Promise<DirectoryStructure> {
-  // TODO: Implement in Phase 2
-  // - Use fast-glob or tree-node-cli
-  // - Generate ASCII tree with max depth
-  // - Exclude: node_modules, .git, dist, build, .horus, coverage
-  // - Return tree as string + top-level dirs
-  throw new Error("scanDirectoryStructure not yet implemented");
+export function scanExistingHorusMd(
+  cwd: string,
+  targetFile: string
+): string | null {
+  const horusPath = join(cwd, targetFile);
+
+  if (!existsSync(horusPath)) {
+    return null;
+  }
+
+  try {
+    return readFileSync(horusPath, "utf-8");
+  } catch {
+    return null;
+  }
 }
 
 // ============================================================================
-// Codebase Statistics Scanner
+// Main Scanner - Orchestrateur
 // ============================================================================
 
 /**
- * Scans codebase to gather file and line statistics
- * @returns Statistics about files, lines of code, and languages
+ * Scans the repository and returns all metadata
  */
-export async function scanCodebaseStats(): Promise<CodebaseMetadata> {
-  // TODO: Implement in Phase 2
-  // - Use fast-glob to find all files
-  // - Count files by extension (.ts, .tsx, .js, .jsx, .py, .rs, etc.)
-  // - Count total lines (estimate via wc or manual read)
-  // - Detect primary language (most files)
-  // - Count test files (*.spec.*, *.test.*, __tests__/*)
-  throw new Error("scanCodebaseStats not yet implemented");
-}
+export function scanRepository(config: InitConfig): ScanResult {
+  const { cwd, targetFile, includeGit } = config;
 
-// ============================================================================
-// Existing Documentation Scanner
-// ============================================================================
+  // Scan package.json
+  const pkgData = scanPackageJson(cwd);
 
-/**
- * Scans for existing documentation files
- * @returns Paths and content of existing documentation
- */
-export async function scanExistingDocs(): Promise<ExistingDocumentation> {
-  // TODO: Implement in Phase 2
-  // - Check for: README.md, CLAUDE.md, GEMINI.md, CONTRIBUTING.md, ARCHITECTURE.md
-  // - Check for: .cursor/rules/**, .github/copilot-instructions.md
-  // - Read relevant sections (features, architecture)
-  // - Return paths or content snippets
-  throw new Error("scanExistingDocs not yet implemented");
-}
+  // Scan tsconfig.json
+  const tsData = scanTsConfig(cwd);
 
-// ============================================================================
-// Main Scan Orchestrator
-// ============================================================================
+  // Scan git metadata (optional)
+  const gitData = includeGit ? scanGitMetadata(cwd) : {};
 
-/**
- * Orchestrates all scanning operations
- * @param includeGit Whether to include git metadata (default: true)
- * @param maxDepth Maximum directory depth (default: 3)
- * @returns Complete scan result
- */
-export async function scanRepository(
-  includeGit: boolean = true,
-  maxDepth: number = 3
-): Promise<ScanResult> {
-  // TODO: Implement orchestration in Phase 2
-  // - Call all scan functions
-  // - Aggregate results
-  // - Handle errors gracefully (partial results OK)
+  // Check existing HORUS.md
+  const existingHorusMd = scanExistingHorusMd(cwd, targetFile);
 
-  const packageMeta = await scanPackageJson();
-  const tsconfig = await scanTsConfig();
-  const git = includeGit ? await scanGitMetadata() : createDefaultGitMetadata();
-  const codebase = await scanCodebaseStats();
-  const structure = await scanDirectoryStructure(maxDepth);
-  const existingDocs = await scanExistingDocs();
-
-  return {
-    package: packageMeta,
-    tsconfig,
-    git,
-    codebase,
-    structure,
-    existingDocs,
+  // Détecter la commande d'installation
+  const packageManager = getPackageManager(cwd);
+  const scripts = {
+    install: `${packageManager} install`,
+    ...pkgData.scripts,
   };
-}
 
-// ============================================================================
-// Helper Functions
-// ============================================================================
-
-/**
- * Creates default git metadata when not a git repository
- */
-function createDefaultGitMetadata(): GitMetadata {
   return {
-    branch: "main",
-    lastCommitDate: new Date().toISOString().split("T")[0],
-    contributors: [],
-    recentCommits: [],
-    hasRemote: false,
+    projectName: pkgData.name,
+    version: pkgData.version,
+    scripts,
+    hasTypeScript: tsData.hasTypeScript,
+    isESM: pkgData.isESM,
+    esTarget: tsData.esTarget,
+    strictMode: tsData.strictMode,
+    gitBranch: gitData.gitBranch,
+    gitRemote: gitData.gitRemote,
+    existingHorusMd,
+    keyDependencies: pkgData.keyDependencies,
   };
 }
