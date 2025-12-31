@@ -1,4 +1,4 @@
-import { useState, useMemo, useEffect } from "react";
+import { useState, useMemo, useEffect, useCallback } from "react";
 import { useInput } from "ink";
 import { HorusAgent, ChatEntry } from "../agent/horus-agent.js";
 import { ConfirmationService } from "../utils/confirmation-service.js";
@@ -6,6 +6,16 @@ import { useEnhancedInput, Key } from "./use-enhanced-input.js";
 
 import { filterCommandSuggestions } from "../ui/components/command-suggestions.js";
 import { loadModelConfig, updateCurrentModel } from "../utils/model-config.js";
+
+// Slash commands system
+import {
+  initializeSlashCommands,
+  executeSlashCommand,
+  getSlashCommandSuggestions,
+  isSlashCommandInput,
+  type CommandContext,
+  type CommandSuggestion,
+} from "../commands/slash/index.js";
 
 interface UseInputHandlerProps {
   agent: HorusAgent;
@@ -21,7 +31,7 @@ interface UseInputHandlerProps {
   isConfirmationActive?: boolean;
 }
 
-interface CommandSuggestion {
+interface LegacyCommandSuggestion {
   command: string;
   description: string;
 }
@@ -47,11 +57,24 @@ export function useInputHandler({
   const [selectedCommandIndex, setSelectedCommandIndex] = useState(0);
   const [showModelSelection, setShowModelSelection] = useState(false);
   const [selectedModelIndex, setSelectedModelIndex] = useState(0);
+  const [slashCommandsInitialized, setSlashCommandsInitialized] = useState(false);
   const [autoEditEnabled, setAutoEditEnabled] = useState(() => {
     const confirmationService = ConfirmationService.getInstance();
     const sessionFlags = confirmationService.getSessionFlags();
     return sessionFlags.allOperations;
   });
+
+  // Initialize slash commands system on mount
+  useEffect(() => {
+    if (!slashCommandsInitialized) {
+      initializeSlashCommands(process.cwd())
+        .then(() => setSlashCommandsInitialized(true))
+        .catch((err) => {
+          console.warn('Failed to initialize slash commands:', err);
+          setSlashCommandsInitialized(true); // Continue anyway
+        });
+    }
+  }, [slashCommandsInitialized]);
 
   const handleSpecialKey = (key: Key): boolean => {
     // Don't handle input if confirmation dialog is active
@@ -238,95 +261,98 @@ export function useInputHandler({
     handleInputChange(input);
   }, [input]);
 
-  const commandSuggestions: CommandSuggestion[] = [
-    { command: "/help", description: "Show help information" },
-    { command: "/clear", description: "Clear chat history" },
-    { command: "/models", description: "Switch Horus Model" },
-    { command: "/commit-and-push", description: "AI commit & push to remote" },
-    { command: "/exit", description: "Exit the application" },
-  ];
+  // Get dynamic command suggestions from slash commands system
+  const commandSuggestions: LegacyCommandSuggestion[] = useMemo(() => {
+    if (!slashCommandsInitialized) {
+      // Fallback suggestions while loading
+      return [
+        { command: "/help", description: "Show help information" },
+        { command: "/clear", description: "Clear chat history" },
+        { command: "/models", description: "Switch Horus Model" },
+        { command: "/commit", description: "AI commit message" },
+        { command: "/exit", description: "Exit the application" },
+      ];
+    }
+
+    // Get suggestions from slash commands system
+    const suggestions = getSlashCommandSuggestions(input);
+    return suggestions.map(s => ({
+      command: s.command,
+      description: s.description,
+    }));
+  }, [slashCommandsInitialized, input]);
 
   // Load models from configuration with fallback to defaults
   const availableModels: ModelOption[] = useMemo(() => {
     return loadModelConfig(); // Return directly, interface already matches
   }, []);
 
+  // Helper to add chat entry
+  const addChatEntry = useCallback((entry: ChatEntry) => {
+    setChatHistory((prev) => [...prev, entry]);
+  }, [setChatHistory]);
+
   const handleDirectCommand = async (input: string): Promise<boolean> => {
     const trimmedInput = input.trim();
 
-    if (trimmedInput === "/clear") {
-      // Reset chat history
-      setChatHistory([]);
-
-      // Reset processing states
-      setIsProcessing(false);
-      setIsStreaming(false);
-      setTokenCount(0);
-      setProcessingTime(0);
-      processingStartTime.current = 0;
-
-      // Reset confirmation service session flags
-      const confirmationService = ConfirmationService.getInstance();
-      confirmationService.resetSession();
-
-      clearInput();
-      resetHistory();
-      return true;
-    }
-
-    if (trimmedInput === "/help") {
-      const helpEntry: ChatEntry = {
-        type: "assistant",
-        content: `Horus CLI Help:
-
-Built-in Commands:
-  /clear      - Clear chat history
-  /help       - Show this help
-  /models     - Switch between available models
-  /exit       - Exit application
-  exit, quit  - Exit application
-
-Git Commands:
-  /commit-and-push - AI-generated commit + push to remote
-
-Enhanced Input Features:
-  ↑/↓ Arrow   - Navigate command history
-  Ctrl+C      - Clear input (press twice to exit)
-  Ctrl+←/→    - Move by word
-  Ctrl+A/E    - Move to line start/end
-  Ctrl+W      - Delete word before cursor
-  Ctrl+K      - Delete to end of line
-  Ctrl+U      - Delete to start of line
-  Shift+Tab   - Toggle auto-edit mode (bypass confirmations)
-
-Direct Commands (executed immediately):
-  ls [path]   - List directory contents
-  pwd         - Show current directory
-  cd <path>   - Change directory
-  cat <file>  - View file contents
-  mkdir <dir> - Create directory
-  touch <file>- Create empty file
-
-Model Configuration:
-  Edit ~/.horus/models.json to add custom models (Claude, GPT, Gemini, etc.)
-
-For complex operations, just describe what you want in natural language.
-Examples:
-  "edit package.json and add a new script"
-  "create a new React component called Header"
-  "show me all TypeScript files in this project"`,
-        timestamp: new Date(),
+    // Check if this is a slash command
+    if (isSlashCommandInput(trimmedInput)) {
+      // Build command context
+      const context: CommandContext = {
+        agent,
+        chatHistory,
+        addChatEntry,
+        clearHistory: () => {
+          setChatHistory([]);
+          setIsProcessing(false);
+          setIsStreaming(false);
+          setTokenCount(0);
+          setProcessingTime(0);
+          processingStartTime.current = 0;
+        },
+        setProcessing: setIsProcessing,
+        setStreaming: setIsStreaming,
+        cwd: process.cwd(),
+        rawArgs: '',
+        args: [],
       };
-      setChatHistory((prev) => [...prev, helpEntry]);
-      clearInput();
-      return true;
+
+      // Execute slash command
+      const result = await executeSlashCommand(trimmedInput, context);
+
+      if (result.handled) {
+        // Show error if any
+        if (result.error) {
+          const errorEntry: ChatEntry = {
+            type: 'assistant',
+            content: `❌ ${result.error}`,
+            timestamp: new Date(),
+          };
+          addChatEntry(errorEntry);
+        }
+        // Show message if any
+        else if (result.message && !result.continueAsMessage) {
+          const msgEntry: ChatEntry = {
+            type: 'assistant',
+            content: result.message,
+            timestamp: new Date(),
+          };
+          addChatEntry(msgEntry);
+        }
+        // If command wants to continue as message, return false to process normally
+        else if (result.continueAsMessage && result.message) {
+          clearInput();
+          // Process the expanded prompt as a user message
+          await processUserMessage(result.message);
+          return true;
+        }
+
+        clearInput();
+        return true;
+      }
     }
 
-    if (trimmedInput === "/exit") {
-      process.exit(0);
-      return true;
-    }
-
+    // Legacy: /models with menu (kept for UX)
     if (trimmedInput === "/models") {
       setShowModelSelection(true);
       setSelectedModelIndex(0);
@@ -334,238 +360,25 @@ Examples:
       return true;
     }
 
-    if (trimmedInput.startsWith("/models ")) {
-      const modelArg = trimmedInput.split(" ")[1];
-      const modelNames = availableModels.map((m) => m.model);
-
-      if (modelNames.includes(modelArg)) {
-        agent.setModel(modelArg);
-        updateCurrentModel(modelArg); // Update project current model
-        const confirmEntry: ChatEntry = {
-          type: "assistant",
-          content: `✓ Switched to model: ${modelArg}`,
-          timestamp: new Date(),
-        };
-        setChatHistory((prev) => [...prev, confirmEntry]);
-      } else {
-        const errorEntry: ChatEntry = {
-          type: "assistant",
-          content: `Invalid model: ${modelArg}
-
-Available models: ${modelNames.join(", ")}`,
-          timestamp: new Date(),
-        };
-        setChatHistory((prev) => [...prev, errorEntry]);
-      }
-
-      clearInput();
-      return true;
-    }
-
-
+    // Legacy: /commit-and-push alias to /commit --push
     if (trimmedInput === "/commit-and-push") {
-      const userEntry: ChatEntry = {
-        type: "user",
-        content: "/commit-and-push",
-        timestamp: new Date(),
+      const context: CommandContext = {
+        agent,
+        chatHistory,
+        addChatEntry,
+        clearHistory: () => setChatHistory([]),
+        setProcessing: setIsProcessing,
+        setStreaming: setIsStreaming,
+        cwd: process.cwd(),
+        rawArgs: '--push',
+        args: ['--push'],
       };
-      setChatHistory((prev) => [...prev, userEntry]);
-
-      setIsProcessing(true);
-      setIsStreaming(true);
-
-      try {
-        // First check if there are any changes at all
-        const initialStatusResult = await agent.executeBashCommand(
-          "git status --porcelain"
-        );
-
-        if (
-          !initialStatusResult.success ||
-          !initialStatusResult.output?.trim()
-        ) {
-          const noChangesEntry: ChatEntry = {
-            type: "assistant",
-            content: "No changes to commit. Working directory is clean.",
-            timestamp: new Date(),
-          };
-          setChatHistory((prev) => [...prev, noChangesEntry]);
-          setIsProcessing(false);
-          setIsStreaming(false);
-          setInput("");
-          return true;
-        }
-
-        // Add all changes
-        const addResult = await agent.executeBashCommand("git add .");
-
-        if (!addResult.success) {
-          const addErrorEntry: ChatEntry = {
-            type: "assistant",
-            content: `Failed to stage changes: ${
-              addResult.error || "Unknown error"
-            }`,
-            timestamp: new Date(),
-          };
-          setChatHistory((prev) => [...prev, addErrorEntry]);
-          setIsProcessing(false);
-          setIsStreaming(false);
-          setInput("");
-          return true;
-        }
-
-        // Show that changes were staged
-        const addEntry: ChatEntry = {
-          type: "tool_result",
-          content: "Changes staged successfully",
-          timestamp: new Date(),
-          toolCall: {
-            id: `git_add_${Date.now()}`,
-            type: "function",
-            function: {
-              name: "bash",
-              arguments: JSON.stringify({ command: "git add ." }),
-            },
-          },
-          toolResult: addResult,
-        };
-        setChatHistory((prev) => [...prev, addEntry]);
-
-        // Get staged changes for commit message generation
-        const diffResult = await agent.executeBashCommand("git diff --cached");
-
-        // Generate commit message using AI
-        const commitPrompt = `Generate a concise, professional git commit message for these changes:
-
-Git Status:
-${initialStatusResult.output}
-
-Git Diff (staged changes):
-${diffResult.output || "No staged changes shown"}
-
-Follow conventional commit format (feat:, fix:, docs:, etc.) and keep it under 72 characters.
-Respond with ONLY the commit message, no additional text.`;
-
-        let commitMessage = "";
-        let streamingEntry: ChatEntry | null = null;
-
-        for await (const chunk of agent.processUserMessageStream(
-          commitPrompt
-        )) {
-          if (chunk.type === "content" && chunk.content) {
-            if (!streamingEntry) {
-              const newEntry = {
-                type: "assistant" as const,
-                content: `Generating commit message...\n\n${chunk.content}`,
-                timestamp: new Date(),
-                isStreaming: true,
-              };
-              setChatHistory((prev) => [...prev, newEntry]);
-              streamingEntry = newEntry;
-              commitMessage = chunk.content;
-            } else {
-              commitMessage += chunk.content;
-              setChatHistory((prev) =>
-                prev.map((entry, idx) =>
-                  idx === prev.length - 1 && entry.isStreaming
-                    ? {
-                        ...entry,
-                        content: `Generating commit message...\n\n${commitMessage}`,
-                      }
-                    : entry
-                )
-              );
-            }
-          } else if (chunk.type === "done") {
-            if (streamingEntry) {
-              setChatHistory((prev) =>
-                prev.map((entry) =>
-                  entry.isStreaming
-                    ? {
-                        ...entry,
-                        content: `Generated commit message: "${commitMessage.trim()}"`,
-                        isStreaming: false,
-                      }
-                    : entry
-                )
-              );
-            }
-            break;
-          }
-        }
-
-        // Execute the commit
-        const cleanCommitMessage = commitMessage
-          .trim()
-          .replace(/^["']|["']$/g, "");
-        const commitCommand = `git commit -m "${cleanCommitMessage}"`;
-        const commitResult = await agent.executeBashCommand(commitCommand);
-
-        const commitEntry: ChatEntry = {
-          type: "tool_result",
-          content: commitResult.success
-            ? commitResult.output || "Commit successful"
-            : commitResult.error || "Commit failed",
-          timestamp: new Date(),
-          toolCall: {
-            id: `git_commit_${Date.now()}`,
-            type: "function",
-            function: {
-              name: "bash",
-              arguments: JSON.stringify({ command: commitCommand }),
-            },
-          },
-          toolResult: commitResult,
-        };
-        setChatHistory((prev) => [...prev, commitEntry]);
-
-        // If commit was successful, push to remote
-        if (commitResult.success) {
-          // First try regular push, if it fails try with upstream setup
-          let pushResult = await agent.executeBashCommand("git push");
-          let pushCommand = "git push";
-
-          if (
-            !pushResult.success &&
-            pushResult.error?.includes("no upstream branch")
-          ) {
-            pushCommand = "git push -u origin HEAD";
-            pushResult = await agent.executeBashCommand(pushCommand);
-          }
-
-          const pushEntry: ChatEntry = {
-            type: "tool_result",
-            content: pushResult.success
-              ? pushResult.output || "Push successful"
-              : pushResult.error || "Push failed",
-            timestamp: new Date(),
-            toolCall: {
-              id: `git_push_${Date.now()}`,
-              type: "function",
-              function: {
-                name: "bash",
-                arguments: JSON.stringify({ command: pushCommand }),
-              },
-            },
-            toolResult: pushResult,
-          };
-          setChatHistory((prev) => [...prev, pushEntry]);
-        }
-      } catch (error: any) {
-        const errorEntry: ChatEntry = {
-          type: "assistant",
-          content: `Error during commit and push: ${error.message}`,
-          timestamp: new Date(),
-        };
-        setChatHistory((prev) => [...prev, errorEntry]);
-      }
-
-      setIsProcessing(false);
-      setIsStreaming(false);
+      await executeSlashCommand('/commit --push', context);
       clearInput();
       return true;
     }
 
+    // Direct bash commands (ls, pwd, cd, etc.)
     const directBashCommands = [
       "ls",
       "pwd",

@@ -318,10 +318,10 @@ function ModernChatInterfaceWithAgent({
           </Text>
           <Box marginTop={1} flexDirection="column" marginLeft={2}>
             <Text color="gray">• Ask questions or request code changes in natural language</Text>
-            <Text color="gray">• Use /help to see available commands</Text>
-            <Text color="gray">• Use /models to switch AI models</Text>
+            <Text color="gray">• Type / to see available slash commands</Text>
+            <Text color="gray">• Use /help for full documentation</Text>
             <Text color="gray">• Press Shift+Tab to toggle auto-edit mode</Text>
-            <Text color="gray">• Create .horus/custom-instructions.md to customize behavior</Text>
+            <Text color="gray">• Create custom commands in .horus/commands/</Text>
           </Box>
         </Box>
       )}
