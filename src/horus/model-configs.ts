@@ -17,7 +17,42 @@ export interface ModelConfig {
  * Source: MODELE_CODING_BENCHMARKS.md and official model documentation
  */
 export const MODEL_CONFIGS: ModelConfig[] = [
-  // Devstral - Best for coding agents
+  // Mistral 7B Instruct v0.3 AWQ - Best for 16GB VRAM with tool calling
+  {
+    modelName: "solidrust/Mistral-7B-Instruct-v0.3-AWQ",
+    maxContextTokens: 16384, // 16K context (validated on 16GB VRAM)
+    description: "AWQ 4-bit quantized, ~4GB VRAM, native tool calling",
+  },
+
+  // Devstral Small 2507 AWQ - Needs 24GB+ VRAM
+  {
+    modelName: "cpatonn/Devstral-Small-2507-AWQ-4bit",
+    maxContextTokens: 32768, // 32K context
+    description: "AWQ 4-bit quantized, ~13GB VRAM (needs 24GB+ GPU)",
+  },
+
+  // Devstral Small 2 - Full precision (needs 28GB+ VRAM)
+  {
+    modelName: "mistralai/Devstral-Small-2-24B-Instruct-2512",
+    maxContextTokens: 384000, // 384K context
+    description: "Full precision - Best tool use (SWE-Bench 65.8%)",
+  },
+
+  // Mistral 7B - Lightweight alternative
+  {
+    modelName: "mistralai/Mistral-7B-Instruct-v0.3",
+    maxContextTokens: 32768, // 32K context
+    description: "Lightweight 7B model with tool calling",
+  },
+
+  // Qwen 2.5 Coder 7B - Code-focused
+  {
+    modelName: "Qwen/Qwen2.5-Coder-7B-Instruct",
+    maxContextTokens: 131072, // 128K context
+    description: "Code-focused 7B model",
+  },
+
+  // Legacy Devstral patterns
   {
     modelName: "devstral",
     maxContextTokens: 128000, // 128K context
@@ -115,7 +150,7 @@ export function getModelMaxContext(modelName: string): number {
 
   // Find matching configuration (check if model name starts with config name)
   for (const config of MODEL_CONFIGS) {
-    if (normalizedName.startsWith(config.modelName)) {
+    if (normalizedName.startsWith(config.modelName.toLowerCase())) {
       return config.maxContextTokens;
     }
   }
@@ -141,7 +176,7 @@ export function getModelConfig(modelName: string): ModelConfig | undefined {
   const normalizedName = modelName.toLowerCase();
 
   for (const config of MODEL_CONFIGS) {
-    if (normalizedName.startsWith(config.modelName)) {
+    if (normalizedName.startsWith(config.modelName.toLowerCase())) {
       return config;
     }
   }

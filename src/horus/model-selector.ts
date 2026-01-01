@@ -31,64 +31,62 @@ export interface ModelRecommendation {
 }
 
 /**
- * Mistral/Ollama model specifications
- * Source: ROADMAP.md Phase 5
+ * Mistral/vLLM model specifications
+ * Models served via vLLM with --tool-call-parser mistral
+ * Optimized for GPUs with 16GB VRAM (RTX 4070/4080/3090)
  */
 export const MISTRAL_MODELS = {
-  mistral: {
-    name: 'mistral',
-    size: '7B',
-    context: 8192,
+  'solidrust/Mistral-7B-Instruct-v0.3-AWQ': {
+    name: 'solidrust/Mistral-7B-Instruct-v0.3-AWQ',
+    size: '7B AWQ 4-bit',
+    context: 16384, // 16K context (validated on 16GB VRAM)
     vramMin: 4,
-    vramRecommended: 6,
-    speed: 5, // out of 5
-    quality: 3, // out of 5
-    description: 'Fast & lean for quick operations',
-    useCases: ['Navigation fichiers', 'Petites éditions', 'Réponses rapides'],
-  },
-  'mistral-small': {
-    name: 'mistral-small',
-    size: '22B',
-    context: 32768,
-    vramMin: 12,
-    vramRecommended: 16,
-    speed: 4,
+    vramRecommended: 8,
+    speed: 5,
     quality: 4,
-    description: 'Balanced: excellent quality, good speed',
-    useCases: ['Refactors multi-fichiers', 'Analyses approfondies', 'Most tasks'],
+    description: '🏆 RECOMMENDED: AWQ 4-bit for 16GB VRAM with tool calling',
+    useCases: ['Agentic coding', 'Tool calling', 'Fast responses'],
   },
-  mixtral: {
-    name: 'mixtral',
-    size: '8x7B MoE',
-    context: 32768,
-    vramMin: 24,
-    vramRecommended: 32,
-    speed: 3,
+  'cpatonn/Devstral-Small-2507-AWQ-4bit': {
+    name: 'cpatonn/Devstral-Small-2507-AWQ-4bit',
+    size: '24B AWQ 4-bit',
+    context: 32768, // 32K context
+    vramMin: 13,
+    vramRecommended: 24,
+    speed: 4,
     quality: 5,
-    description: 'Powerful for complex refactors',
-    useCases: ['Refactors complexes', 'Architecture decisions', 'Parallel subagents'],
+    description: 'Devstral AWQ 4-bit (needs 24GB+ VRAM)',
+    useCases: ['Agentic coding', 'Tool calling', 'Codebase exploration'],
   },
-  'devstral:24b': {
-    name: 'devstral:24b',
+  'Qwen/Qwen2.5-Coder-7B-Instruct': {
+    name: 'Qwen/Qwen2.5-Coder-7B-Instruct',
+    size: '7B',
+    context: 131072, // 128K context
+    vramMin: 8,
+    vramRecommended: 14,
+    speed: 5,
+    quality: 4,
+    description: 'Code-focused 7B model',
+    useCases: ['Code generation', 'Refactoring', 'Analysis'],
+  },
+  'mistralai/Devstral-Small-2-24B-Instruct-2512': {
+    name: 'mistralai/Devstral-Small-2-24B-Instruct-2512',
     size: '24B',
-    context: 128000,
-    vramMin: 32,
-    vramRecommended: 40,
-    speed: 2,
-    quality: 5, // Best for agentic coding (SWE-Bench 46.8%)
-    description: '🏆 RECOMMENDED: Best for agentic coding & codebase exploration',
-    useCases: ['Agentic coding', 'Codebase exploration', 'Multi-file editing', 'SWE tasks'],
+    context: 384000, // 384K context
+    vramMin: 28,
+    vramRecommended: 48,
+    speed: 3,
+    quality: 5, // SWE-Bench 65.8%
+    description: 'Full precision (needs 28GB+ VRAM)',
+    useCases: ['Large context', 'Complex tasks', 'Production'],
   },
 } as const;
 
 /**
  * Select optimal model based on VRAM and context size
  *
- * Strategy:
- * - Large context (>32K): devstral (if VRAM >= 32GB)
- * - Medium context (16-32K): mixtral (if VRAM >= 16GB), fallback mistral-small
- * - Small context (8-16K): mistral-small
- * - Tiny context (<8K): mistral
+ * With vLLM, model selection is simplified - Devstral Small 2 handles most cases
+ * with its 384K context window and excellent tool calling support.
  *
  * @param contextSize - Required context size in tokens
  * @param availableVRAM - Available VRAM in GB
@@ -100,108 +98,42 @@ export function selectOptimalModel(
 ): ModelRecommendation {
   const debug = process.env.HORUS_CONTEXT_DEBUG === 'true';
 
+  // Default: Mistral 7B AWQ 4-bit for 16GB VRAM (recommended)
+  const defaultModel = 'solidrust/Mistral-7B-Instruct-v0.3-AWQ';
+  const defaultConfig = MISTRAL_MODELS[defaultModel];
+
   if (debug) {
     console.error(
       `[MODEL-SELECTOR] Selecting model for context=${contextSize} tokens, VRAM=${availableVRAM}GB`
     );
   }
 
-  // Large context needed (>32K tokens)
-  if (contextSize > 32000) {
-    if (availableVRAM >= MISTRAL_MODELS['devstral:24b'].vramMin) {
-      return {
-        modelName: 'devstral:24b',
-        profile: 'deep',
-        maxContext: MISTRAL_MODELS['devstral:24b'].context,
-        vramRequired: MISTRAL_MODELS['devstral:24b'].vramMin,
-        reason: 'Large context window required (>32K tokens)',
-        alternatives: availableVRAM >= MISTRAL_MODELS.mixtral.vramMin ? ['mixtral'] : [],
-      };
-    }
-
-    // Not enough VRAM for large context
-    throw new Error(
-      `Insufficient VRAM for context size ${contextSize}. ` +
-        `Need ${MISTRAL_MODELS['devstral:24b'].vramMin}GB VRAM for devstral:24b, but only ${availableVRAM}GB available. ` +
-        `Consider reducing context size or upgrading hardware.`
-    );
-  }
-
-  // Medium context (16-32K tokens)
-  if (contextSize > 16000) {
-    if (availableVRAM >= MISTRAL_MODELS.mixtral.vramMin) {
-      return {
-        modelName: 'mixtral',
-        profile: 'powerful',
-        maxContext: MISTRAL_MODELS.mixtral.context,
-        vramRequired: MISTRAL_MODELS.mixtral.vramMin,
-        reason: 'Medium-large context with high quality requirements',
-        alternatives: ['mistral-small'],
-      };
-    }
-
-    // Fallback to mistral-small
-    if (availableVRAM >= MISTRAL_MODELS['mistral-small'].vramMin) {
-      return {
-        modelName: 'mistral-small',
-        profile: 'balanced',
-        maxContext: MISTRAL_MODELS['mistral-small'].context,
-        vramRequired: MISTRAL_MODELS['mistral-small'].vramMin,
-        reason: 'Medium context, VRAM limited (fallback from mixtral)',
-        alternatives: [],
-      };
-    }
-
-    // Not enough VRAM
-    throw new Error(
-      `Insufficient VRAM for context size ${contextSize}. ` +
-        `Need at least ${MISTRAL_MODELS['mistral-small'].vramMin}GB VRAM for mistral-small, but only ${availableVRAM}GB available.`
-    );
-  }
-
-  // Small context (8-16K tokens)
-  if (contextSize > 8000) {
-    if (availableVRAM >= MISTRAL_MODELS['mistral-small'].vramMin) {
-      return {
-        modelName: 'mistral-small',
-        profile: 'balanced',
-        maxContext: MISTRAL_MODELS['mistral-small'].context,
-        vramRequired: MISTRAL_MODELS['mistral-small'].vramMin,
-        reason: 'Small-medium context, optimal balance',
-        alternatives: availableVRAM >= MISTRAL_MODELS.mixtral.vramMin ? ['mixtral'] : ['mistral'],
-      };
-    }
-
-    // Fallback to mistral 7B
+  // Mistral 7B AWQ fits in 4-8GB VRAM with 16K context
+  if (availableVRAM >= defaultConfig.vramMin) {
     return {
-      modelName: 'mistral',
-      profile: 'fast',
-      maxContext: MISTRAL_MODELS.mistral.context,
-      vramRequired: MISTRAL_MODELS.mistral.vramMin,
-      reason: 'Small context, VRAM limited (fallback)',
-      alternatives: [],
+      modelName: defaultModel,
+      profile: 'balanced',
+      maxContext: defaultConfig.context,
+      vramRequired: defaultConfig.vramMin,
+      reason: 'Mistral 7B AWQ - optimal for 16GB VRAM with tool calling',
+      alternatives: Object.keys(MISTRAL_MODELS).filter(m => m !== defaultModel),
     };
   }
 
-  // Tiny context (<8K tokens) - default to fast model
-  return {
-    modelName: 'mistral',
-    profile: 'fast',
-    maxContext: MISTRAL_MODELS.mistral.context,
-    vramRequired: MISTRAL_MODELS.mistral.vramMin,
-    reason: 'Small context, optimized for speed',
-    alternatives: availableVRAM >= MISTRAL_MODELS['mistral-small'].vramMin ? ['mistral-small'] : [],
-  };
+  // Not enough VRAM (need at least 4GB)
+  throw new Error(
+    `Insufficient VRAM. Need at least ${defaultConfig.vramMin}GB VRAM, but only ${availableVRAM}GB available.`
+  );
 }
 
 /**
  * Select model by profile (user preference)
  *
- * Profiles:
- * - fast: mistral (7B)
- * - balanced: devstral:24b (24B, 128K) [DEFAULT] 🏆
- * - powerful: mixtral (8x7B)
- * - deep: devstral:24b (24B, 128K)
+ * Profiles (all map to vLLM-served models):
+ * - fast: Mistral 7B AWQ [DEFAULT] (best for 16GB VRAM with tool calling)
+ * - balanced: Mistral 7B AWQ (same as fast, best balance)
+ * - powerful: Devstral Small 2507 AWQ (needs 24GB+ VRAM)
+ * - deep: Devstral Small 2 full precision (needs 28GB+ VRAM)
  *
  * @param profile - User-selected profile
  * @param availableVRAM - Available VRAM in GB
@@ -212,10 +144,10 @@ export function selectModelByProfile(
   availableVRAM: number
 ): ModelRecommendation {
   const modelMap: Record<ModelProfile, keyof typeof MISTRAL_MODELS> = {
-    fast: 'mistral',
-    balanced: 'devstral:24b', // UPDATED: Best for agentic coding (SWE-Bench 46.8%)
-    powerful: 'mixtral',
-    deep: 'devstral:24b',
+    fast: 'solidrust/Mistral-7B-Instruct-v0.3-AWQ',
+    balanced: 'solidrust/Mistral-7B-Instruct-v0.3-AWQ',
+    powerful: 'cpatonn/Devstral-Small-2507-AWQ-4bit',
+    deep: 'mistralai/Devstral-Small-2-24B-Instruct-2512',
   };
 
   const targetModel = modelMap[profile];
@@ -223,27 +155,19 @@ export function selectModelByProfile(
 
   // Check VRAM requirements
   if (availableVRAM < model.vramMin) {
-    // Fallback to models ordered by VRAM (descending), not by profile name
-    // This ensures we try the best model that fits available VRAM
-    const vramOrderedModels: { model: keyof typeof MISTRAL_MODELS; profile: ModelProfile }[] = [
-      { model: 'devstral:24b', profile: 'deep' },      // 32GB
-      { model: 'mixtral', profile: 'powerful' },       // 24GB
-      { model: 'mistral-small', profile: 'balanced' }, // 12GB
-      { model: 'mistral', profile: 'fast' },           // 4GB
-    ];
+    // Fallback to Mistral 7B AWQ (fits any GPU with 4GB+ VRAM)
+    const fallbackModel = 'solidrust/Mistral-7B-Instruct-v0.3-AWQ';
+    const fallbackConfig = MISTRAL_MODELS[fallbackModel];
 
-    for (const fallback of vramOrderedModels) {
-      const fallbackModel = MISTRAL_MODELS[fallback.model];
-      if (availableVRAM >= fallbackModel.vramMin) {
-        return {
-          modelName: fallbackModel.name,
-          profile: fallback.profile,
-          maxContext: fallbackModel.context,
-          vramRequired: fallbackModel.vramMin,
-          reason: `Fallback from ${model.name} (${profile}) due to VRAM limit`,
-          alternatives: [],
-        };
-      }
+    if (availableVRAM >= fallbackConfig.vramMin) {
+      return {
+        modelName: fallbackConfig.name,
+        profile: 'fast',
+        maxContext: fallbackConfig.context,
+        vramRequired: fallbackConfig.vramMin,
+        reason: `Fallback from ${model.name} (${profile}) due to VRAM limit`,
+        alternatives: [],
+      };
     }
 
     throw new Error(

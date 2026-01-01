@@ -99,8 +99,8 @@ export class SubagentManager {
       timeout: config.timeout ?? 60000,
       debug: config.debug ?? false,
       apiKey: config.apiKey,
-      baseURL: config.baseURL ?? process.env.OLLAMA_BASE_URL ?? 'http://localhost:11434/v1',
-      model: config.model ?? process.env.HORUS_MODEL ?? 'devstral:24b',
+      baseURL: config.baseURL ?? process.env.HORUS_BASE_URL ?? 'http://localhost:8000/v1',
+      model: config.model ?? process.env.HORUS_MODEL ?? 'mistralai/Devstral-Small-2-24B-Instruct-2512',
     };
 
     if (this.config.debug) {

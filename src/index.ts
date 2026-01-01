@@ -428,7 +428,7 @@ program
 
     try {
       // Get API key from options, environment, or user settings
-      // Note: Ollama doesn't require an API key, so it's optional now
+      // Note: vLLM local deployment doesn't require an API key
       const apiKey = options.apiKey || loadApiKey() || "";
       const baseURL = options.baseUrl || loadBaseURL();
       const model = options.model || loadModel();
@@ -521,7 +521,7 @@ gitCommand
 
     try {
       // Get API key from options, environment, or user settings
-      // Note: Ollama doesn't require an API key, so it's optional now
+      // Note: vLLM local deployment doesn't require an API key
       const apiKey = options.apiKey || loadApiKey() || "";
       const baseURL = options.baseUrl || loadBaseURL();
       const model = options.model || loadModel();

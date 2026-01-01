@@ -68,7 +68,7 @@ export class ContextOrchestrator {
     if (!isSubagentMode) {
       this.subagentManager = new SubagentManager({
         apiKey: process.env.HORUS_API_KEY || '',
-        baseURL: process.env.OLLAMA_BASE_URL,
+        baseURL: process.env.HORUS_BASE_URL,
         model: process.env.HORUS_MODEL,
         maxConcurrent: 3,
         debug: this.debug,

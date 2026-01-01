@@ -26,17 +26,13 @@ export interface ProjectSettings {
  * Default values for user settings
  */
 const DEFAULT_USER_SETTINGS: Partial<UserSettings> = {
-  baseURL: "http://localhost:11434/v1",
-  defaultModel: "devstral:24b", // RECOMMENDED: Best for agentic coding (24B, 128K, SWE-Bench 46.8%)
+  baseURL: "http://localhost:8000/v1", // vLLM default port
+  defaultModel: "solidrust/Mistral-7B-Instruct-v0.3-AWQ", // RECOMMENDED: AWQ 4-bit for 16GB VRAM
   models: [
-    "mistral",
-    "mistral-small",
-    "devstral:24b", // 🏆 RECOMMENDED for coding agents
-    "mixtral",
-    "deepseek-coder-v2:16b",
-    "qwen2.5-coder:14b",
-    "deepseek-coder:33b",
-    "qwen2.5-coder:32b",
+    "solidrust/Mistral-7B-Instruct-v0.3-AWQ", // 🏆 RECOMMENDED: AWQ 4-bit (~4GB VRAM, 16K context)
+    "cpatonn/Devstral-Small-2507-AWQ-4bit", // Devstral AWQ 4-bit (~13GB VRAM, needs 24GB+)
+    "Qwen/Qwen2.5-Coder-7B-Instruct", // Code-focused 7B
+    "mistralai/Devstral-Small-2-24B-Instruct-2512", // Full precision (needs 28GB+ VRAM)
   ],
 };
 
@@ -44,7 +40,7 @@ const DEFAULT_USER_SETTINGS: Partial<UserSettings> = {
  * Default values for project settings
  */
 const DEFAULT_PROJECT_SETTINGS: Partial<ProjectSettings> = {
-  model: "devstral:24b", // RECOMMENDED: Best for agentic coding
+  model: "solidrust/Mistral-7B-Instruct-v0.3-AWQ", // RECOMMENDED: AWQ 4-bit for 16GB VRAM
 };
 
 /**
@@ -315,7 +311,7 @@ export class SettingsManager {
     // Then check user settings
     const userBaseURL = this.getUserSetting("baseURL");
     return (
-      userBaseURL || DEFAULT_USER_SETTINGS.baseURL || "http://localhost:11434/v1"
+      userBaseURL || DEFAULT_USER_SETTINGS.baseURL || "http://localhost:8000/v1"
     );
   }
 }
