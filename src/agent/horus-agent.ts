@@ -11,6 +11,10 @@ import {
   TodoTool,
   ConfirmationTool,
   SearchTool,
+  GlobTool,
+  GrepTool,
+  LsTool,
+  MultiEditTool,
 } from "../tools/index.js";
 import { ToolResult } from "../types/index.js";
 import { EventEmitter } from "events";
@@ -78,6 +82,10 @@ export class HorusAgent extends EventEmitter {
   private todoTool: TodoTool;
   private confirmationTool: ConfirmationTool;
   private search: SearchTool;
+  private glob: GlobTool;
+  private grep: GrepTool;
+  private ls: LsTool;
+  private multiEdit: MultiEditTool;
 
   constructor(
     apiKey: string,
@@ -101,6 +109,10 @@ export class HorusAgent extends EventEmitter {
     this.todoTool = new TodoTool();
     this.confirmationTool = new ConfirmationTool();
     this.search = new SearchTool();
+    this.glob = new GlobTool();
+    this.grep = new GrepTool();
+    this.ls = new LsTool();
+    this.multiEdit = new MultiEditTool();
 
     // Initialize modular components
     this.toolExecutor = new ToolExecutor(
@@ -108,7 +120,11 @@ export class HorusAgent extends EventEmitter {
       this.morphEditor,
       this.bash,
       this.todoTool,
-      this.search
+      this.search,
+      this.glob,
+      this.grep,
+      this.ls,
+      this.multiEdit
     );
     this.streamingManager = new StreamingManager(
       this.horusClient,

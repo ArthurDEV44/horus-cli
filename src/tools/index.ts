@@ -4,3 +4,9 @@ export { MorphEditorTool } from "./morph-editor.js";
 export { TodoTool } from "./todo-tool.js";
 export { ConfirmationTool } from "./confirmation-tool.js";
 export { SearchTool } from "./search.js";
+
+// Phase 2: Separated Tools
+export { GlobTool } from "./glob.js";
+export { GrepTool } from "./grep.js";
+export { LsTool } from "./ls.js";
+export { MultiEditTool } from "./multi-edit.js";

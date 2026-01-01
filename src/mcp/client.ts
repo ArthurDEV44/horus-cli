@@ -122,10 +122,24 @@ export class MCPManager extends EventEmitter {
     // Extract the original tool name (remove mcp__servername__ prefix)
     const originalToolName = toolName.replace(`mcp__${tool.serverName}__`, '');
 
-    return await client.callTool({
+    const result = await client.callTool({
       name: originalToolName,
       arguments: arguments_
-    });
+    }) as CallToolResult;
+
+    // Handle both new SDK format (toolResult) and legacy format (content)
+    // Some MCP SDK versions return toolResult instead of content
+    if (!result.content && 'toolResult' in (result as any)) {
+      const toolResult = (result as any).toolResult;
+      return {
+        ...result,
+        content: Array.isArray(toolResult)
+          ? toolResult
+          : [{ type: 'text' as const, text: String(toolResult) }],
+      } as CallToolResult;
+    }
+
+    return result;
   }
 
   getTools(): MCPTool[] {

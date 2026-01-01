@@ -1,7 +1,7 @@
 # PLAN: Parité Fonctionnelle Horus CLI ↔ Claude Code
 
 > Document de suivi pour l'implémentation des fonctionnalités Claude Code dans Horus CLI.
-> Dernière mise à jour: 2025-12-31
+> Dernière mise à jour: 2026-01-01
 
 ---
 
@@ -9,7 +9,7 @@
 
 **Objectif**: Atteindre la parité fonctionnelle avec Claude Code d'Anthropic, en utilisant des modèles open source (Mistral/Devstral en priorité).
 
-**Parité actuelle estimée**: ~65% (après implémentation slash commands)
+**Parité actuelle estimée**: ~70% (après Phase 2 Tools Séparés)
 
 ---
 
@@ -47,37 +47,37 @@
 
 ---
 
-### Phase 2: Tools Séparés 🔲 À FAIRE
+### Phase 2: Tools Séparés ✅ COMPLÉTÉ
 
 Claude Code utilise des tools séparés pour chaque opération. Horus combine certains dans un seul outil.
 
-- [ ] **Glob Tool** (séparé de search)
+- [x] **Glob Tool** (séparé de search)
   - Fichier: `src/tools/glob.ts`
   - Pattern matching rapide avec glob syntax
   - Paramètres: `pattern`, `path`, `ignore`
   - Retourne: liste de fichiers triés par date modification
 
-- [ ] **Grep Tool** (séparé de search)
+- [x] **Grep Tool** (séparé de search)
   - Fichier: `src/tools/grep.ts`
   - Recherche contenu avec ripgrep
   - Paramètres: `pattern`, `path`, `type`, `glob`, `-A/-B/-C`, `output_mode`
   - Modes output: `content`, `files_with_matches`, `count`
 
-- [ ] **LS Tool**
+- [x] **LS Tool**
   - Fichier: `src/tools/ls.ts`
   - Listing répertoire avec ignore patterns
-  - Paramètres: `path`, `ignore`
+  - Paramètres: `path`, `ignore`, `all`, `long`, `recursive`, `depth`
 
-- [ ] **MultiEdit Tool**
+- [x] **MultiEdit Tool**
   - Fichier: `src/tools/multi-edit.ts`
   - Éditions multiples atomiques dans un fichier
   - Paramètres: `file_path`, `edits[]` (array d'éditions)
 
-- [ ] **TodoRead Tool**
-  - Ajouter à `src/tools/todo-tool.ts`
-  - Lecture de l'état actuel des todos
+- [x] **TodoRead Tool**
+  - Ajouté à `src/tools/todo-tool.ts`
+  - Lecture de l'état actuel des todos avec filtres
 
-- [ ] **Refactoring Tool Registry**
+- [ ] **Refactoring Tool Registry** (reporté)
   - Convertir `src/horus/tools.ts` en pattern registry
   - Permettre l'enregistrement dynamique de tools
   - Support tools MCP et built-in unifiés

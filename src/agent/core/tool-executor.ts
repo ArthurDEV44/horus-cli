@@ -6,6 +6,10 @@ import {
   BashTool,
   TodoTool,
   SearchTool,
+  GlobTool,
+  GrepTool,
+  LsTool,
+  MultiEditTool,
 } from "../../tools/index.js";
 import { getMCPManager } from "../../horus/tools.js";
 
@@ -23,7 +27,11 @@ export class ToolExecutor {
     private morphEditor: MorphEditorTool | null,
     private bash: BashTool,
     private todoTool: TodoTool,
-    private search: SearchTool
+    private search: SearchTool,
+    private glob: GlobTool,
+    private grep: GrepTool,
+    private ls: LsTool,
+    private multiEdit: MultiEditTool
   ) {}
 
   /**
@@ -94,6 +102,48 @@ export class ToolExecutor {
             maxResults: args.max_results,
             fileTypes: args.file_types,
             includeHidden: args.include_hidden,
+          });
+
+        // Phase 2: Separated Tools
+        case "glob":
+          return await this.glob.glob(args.pattern, {
+            path: args.path,
+            ignore: args.ignore,
+          });
+
+        case "grep":
+          return await this.grep.grep(args.pattern, {
+            path: args.path,
+            glob: args.glob,
+            type: args.type,
+            outputMode: args.output_mode,
+            contextBefore: args.context_before,
+            contextAfter: args.context_after,
+            contextAround: args.context_around,
+            caseInsensitive: args.case_insensitive,
+            multiline: args.multiline,
+            headLimit: args.head_limit,
+            offset: args.offset,
+          });
+
+        case "ls":
+          return await this.ls.ls(args.path, {
+            ignore: args.ignore,
+            all: args.all,
+            long: args.long,
+            recursive: args.recursive,
+            depth: args.depth,
+          });
+
+        case "multi_edit":
+          return await this.multiEdit.multiEdit(args.file_path, args.edits, {
+            dryRun: args.dry_run,
+          });
+
+        case "read_todo_list":
+          return await this.todoTool.readTodoList({
+            status: args.status,
+            priority: args.priority,
           });
 
         default:

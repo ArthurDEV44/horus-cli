@@ -151,4 +151,84 @@ export class TodoTool {
       output: this.formatTodoList()
     };
   }
+
+  /**
+   * Read the current state of the todo list
+   * Returns structured data along with formatted output
+   */
+  async readTodoList(options?: {
+    status?: 'pending' | 'in_progress' | 'completed';
+    priority?: 'high' | 'medium' | 'low';
+  }): Promise<ToolResult> {
+    let filteredTodos = [...this.todos];
+
+    // Apply filters if provided
+    if (options?.status) {
+      filteredTodos = filteredTodos.filter(t => t.status === options.status);
+    }
+    if (options?.priority) {
+      filteredTodos = filteredTodos.filter(t => t.priority === options.priority);
+    }
+
+    // Calculate statistics
+    const stats = {
+      total: this.todos.length,
+      pending: this.todos.filter(t => t.status === 'pending').length,
+      inProgress: this.todos.filter(t => t.status === 'in_progress').length,
+      completed: this.todos.filter(t => t.status === 'completed').length,
+      filtered: filteredTodos.length,
+    };
+
+    // Format output
+    let output = '';
+    if (filteredTodos.length === 0) {
+      output = options ? 'No todos match the filter criteria' : 'No todos created yet';
+    } else {
+      output = this.formatFilteredTodos(filteredTodos);
+    }
+
+    // Add stats summary
+    output += `\n\n📊 Stats: ${stats.completed}/${stats.total} completed`;
+    if (stats.inProgress > 0) {
+      output += ` | ${stats.inProgress} in progress`;
+    }
+    if (stats.pending > 0) {
+      output += ` | ${stats.pending} pending`;
+    }
+
+    return {
+      success: true,
+      output,
+      data: {
+        todos: filteredTodos,
+        stats,
+      },
+    };
+  }
+
+  private formatFilteredTodos(todos: TodoItem[]): string {
+    const getCheckbox = (status: string): string => {
+      switch (status) {
+        case 'completed':
+          return '●';
+        case 'in_progress':
+          return '◐';
+        case 'pending':
+          return '○';
+        default:
+          return '○';
+      }
+    };
+
+    return todos
+      .map((todo) => `${getCheckbox(todo.status)} ${todo.content}`)
+      .join('\n');
+  }
+
+  /**
+   * Get todos array (for external access)
+   */
+  getTodos(): TodoItem[] {
+    return [...this.todos];
+  }
 }

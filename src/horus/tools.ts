@@ -270,6 +270,195 @@ const BASE_HORUS_TOOLS: HorusTool[] = [
       },
     },
   },
+  // Phase 2: Separated Tools
+  {
+    type: "function",
+    function: {
+      name: "glob",
+      description: "Fast file pattern matching tool. Find files matching glob patterns (e.g. '**/*.ts', 'src/**/*.tsx'). Returns matching file paths sorted by modification time (most recent first).",
+      parameters: {
+        type: "object",
+        properties: {
+          pattern: {
+            type: "string",
+            description: "Glob pattern to match files against (e.g. '**/*.ts', 'src/**/*.tsx', '*.json')",
+          },
+          path: {
+            type: "string",
+            description: "Directory to search in. Defaults to current working directory if not specified.",
+          },
+          ignore: {
+            type: "array",
+            items: { type: "string" },
+            description: "Additional patterns to ignore (node_modules, .git, dist are ignored by default)",
+          },
+        },
+        required: ["pattern"],
+      },
+    },
+  },
+  {
+    type: "function",
+    function: {
+      name: "grep",
+      description: "Search file contents with regex patterns (ripgrep-like). Supports multiple output modes and context lines.",
+      parameters: {
+        type: "object",
+        properties: {
+          pattern: {
+            type: "string",
+            description: "Regular expression pattern to search for in file contents",
+          },
+          path: {
+            type: "string",
+            description: "File or directory to search in. Defaults to current working directory.",
+          },
+          glob: {
+            type: "string",
+            description: "Glob pattern to filter files (e.g. '*.ts', '**/*.tsx')",
+          },
+          type: {
+            type: "string",
+            description: "File type to search (e.g. 'js', 'ts', 'py', 'rust', 'go'). More efficient than glob for standard types.",
+          },
+          output_mode: {
+            type: "string",
+            enum: ["content", "files_with_matches", "count"],
+            description: "Output format: 'content' shows matching lines, 'files_with_matches' shows file paths only (default), 'count' shows match counts per file",
+          },
+          context_before: {
+            type: "number",
+            description: "Number of lines to show before each match (like grep -B)",
+          },
+          context_after: {
+            type: "number",
+            description: "Number of lines to show after each match (like grep -A)",
+          },
+          context_around: {
+            type: "number",
+            description: "Number of lines to show before and after each match (like grep -C). Overrides context_before and context_after.",
+          },
+          case_insensitive: {
+            type: "boolean",
+            description: "Case insensitive search (like grep -i). Default: false",
+          },
+          multiline: {
+            type: "boolean",
+            description: "Enable multiline mode where patterns can span lines. Default: false",
+          },
+          head_limit: {
+            type: "number",
+            description: "Limit output to first N entries",
+          },
+          offset: {
+            type: "number",
+            description: "Skip first N entries before applying head_limit",
+          },
+        },
+        required: ["pattern"],
+      },
+    },
+  },
+  {
+    type: "function",
+    function: {
+      name: "ls",
+      description: "List directory contents with optional details and filtering. Respects common ignore patterns.",
+      parameters: {
+        type: "object",
+        properties: {
+          path: {
+            type: "string",
+            description: "Path to list. Defaults to current working directory.",
+          },
+          ignore: {
+            type: "array",
+            items: { type: "string" },
+            description: "Additional patterns to ignore",
+          },
+          all: {
+            type: "boolean",
+            description: "Include hidden files (starting with '.'). Default: false",
+          },
+          long: {
+            type: "boolean",
+            description: "Long format with details (permissions, size, date). Default: false",
+          },
+          recursive: {
+            type: "boolean",
+            description: "Recursive listing. Default: false",
+          },
+          depth: {
+            type: "number",
+            description: "Maximum recursion depth when recursive is true. Default: 1",
+          },
+        },
+        required: [],
+      },
+    },
+  },
+  {
+    type: "function",
+    function: {
+      name: "multi_edit",
+      description: "Apply multiple edits to a single file atomically. All edits succeed or all fail (rollback on error). Each old_string must be unique in the file.",
+      parameters: {
+        type: "object",
+        properties: {
+          file_path: {
+            type: "string",
+            description: "Path to the file to edit",
+          },
+          edits: {
+            type: "array",
+            description: "Array of edits to apply in order",
+            items: {
+              type: "object",
+              properties: {
+                old_string: {
+                  type: "string",
+                  description: "Text to find and replace (must be unique in the file)",
+                },
+                new_string: {
+                  type: "string",
+                  description: "Text to replace with",
+                },
+              },
+              required: ["old_string", "new_string"],
+            },
+          },
+          dry_run: {
+            type: "boolean",
+            description: "Preview changes without applying. Default: false",
+          },
+        },
+        required: ["file_path", "edits"],
+      },
+    },
+  },
+  {
+    type: "function",
+    function: {
+      name: "read_todo_list",
+      description: "Read the current state of the todo list with optional filtering",
+      parameters: {
+        type: "object",
+        properties: {
+          status: {
+            type: "string",
+            enum: ["pending", "in_progress", "completed"],
+            description: "Filter by status",
+          },
+          priority: {
+            type: "string",
+            enum: ["high", "medium", "low"],
+            description: "Filter by priority",
+          },
+        },
+        required: [],
+      },
+    },
+  },
 ];
 
 // Morph Fast Apply tool (conditional)
