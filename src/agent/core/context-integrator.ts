@@ -48,16 +48,13 @@ export class ContextIntegrator {
   }
 
   /**
-   * Inject context bundle into message history
-   * Adds relevant context sources as system messages
+   * Build context string from bundle (for injection into user message)
+   * Returns formatted context string instead of adding system message
+   * This avoids breaking role alternation required by some providers (vLLM)
    */
-  injectContextBundle(
-    bundle: ContextBundle,
-    messages: HorusMessage[],
-    debug: boolean
-  ): void {
+  buildContextString(bundle: ContextBundle, debug: boolean): string | null {
     if (bundle.sources.length === 0) {
-      return;
+      return null;
     }
 
     // Build context message
@@ -92,16 +89,33 @@ export class ContextIntegrator {
 
     contextParts.push("=== END CONTEXT ===");
 
-    const contextMessage = contextParts.join("\n");
+    if (debug) {
+      console.error("[ContextIntegrator] Context string built for injection");
+    }
 
-    // Add as system message to preserve context
+    return contextParts.join("\n");
+  }
+
+  /**
+   * @deprecated Use buildContextString instead to avoid role alternation issues
+   * Inject context bundle into message history as system message
+   */
+  injectContextBundle(
+    bundle: ContextBundle,
+    messages: HorusMessage[],
+    debug: boolean
+  ): void {
+    const contextString = this.buildContextString(bundle, debug);
+    if (!contextString) return;
+
+    // Add as system message (deprecated - breaks role alternation)
     messages.push({
       role: "system",
-      content: contextMessage,
+      content: contextString,
     });
 
     if (debug) {
-      console.error("[ContextIntegrator] Context bundle injected into messages");
+      console.error("[ContextIntegrator] WARNING: Using deprecated injectContextBundle");
     }
   }
 }

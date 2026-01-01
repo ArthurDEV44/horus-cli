@@ -194,6 +194,88 @@ Cela signifie que vous pouvez avoir différents modèles pour différents projet
 }
 ```
 
+### Utilisation avec vLLM (Recommandé pour GPU local)
+
+vLLM est un moteur d'inférence haute performance pour les LLM, idéal pour exécuter des modèles localement sur GPU.
+
+#### 1. Activer l'environnement Python
+
+```bash
+# Activer le venv (ajustez le chemin selon votre installation)
+source ~/venv/bin/activate
+
+# Ou si vous utilisez conda
+conda activate vllm
+```
+
+#### 2. Lancer vLLM avec un modèle
+
+```bash
+# Modèle Mistral 7B AWQ (quantifié, ~4GB VRAM)
+vllm serve solidrust/Mistral-7B-Instruct-v0.3-AWQ \
+  --host 0.0.0.0 \
+  --port 8000 \
+  --dtype auto \
+  --max-model-len 16384 \
+  --tool-call-parser mistral
+
+# Modèle Devstral 24B (pour GPU 24GB+)
+vllm serve mistralai/Devstral-Small-2505 \
+  --host 0.0.0.0 \
+  --port 8000 \
+  --dtype bfloat16 \
+  --max-model-len 32768 \
+  --tool-call-parser mistral
+
+# Avec tensor parallelism pour multi-GPU
+vllm serve mistralai/Devstral-Small-2505 \
+  --host 0.0.0.0 \
+  --port 8000 \
+  --tensor-parallel-size 2 \
+  --tool-call-parser mistral
+```
+
+#### 3. Configurer Horus CLI pour vLLM
+
+```bash
+# Via variable d'environnement
+export HORUS_BASE_URL=http://localhost:8000/v1
+export HORUS_MODEL=solidrust/Mistral-7B-Instruct-v0.3-AWQ
+
+# Ou dans ~/.horus/user-settings.json
+```
+
+```json
+{
+  "baseURL": "http://localhost:8000/v1",
+  "defaultModel": "solidrust/Mistral-7B-Instruct-v0.3-AWQ",
+  "models": [
+    "solidrust/Mistral-7B-Instruct-v0.3-AWQ",
+    "mistralai/Devstral-Small-2505"
+  ]
+}
+```
+
+#### Options vLLM importantes
+
+| Option | Description |
+|--------|-------------|
+| `--tool-call-parser mistral` | **Requis** pour les modèles Mistral avec function calling |
+| `--max-model-len` | Longueur de contexte max (ajuster selon VRAM) |
+| `--dtype auto` | Détection automatique du type (float16/bfloat16) |
+| `--gpu-memory-utilization 0.9` | Utilisation max de la VRAM (défaut: 0.9) |
+| `--tensor-parallel-size N` | Répartir sur N GPUs |
+
+#### Vérifier que vLLM fonctionne
+
+```bash
+# Tester l'API
+curl http://localhost:8000/v1/models
+
+# Lancer Horus
+horus
+```
+
 ## Utilisation
 
 ### 🌐 Support Multilingue

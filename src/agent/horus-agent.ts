@@ -213,21 +213,10 @@ export class HorusAgent extends EventEmitter {
    * Uses the gather-act-verify loop
    */
   async processUserMessage(message: string): Promise<ChatEntry[]> {
-    // Add user message to conversation
-    const userEntry: ChatEntry = {
-      type: "user",
-      content: message,
-      timestamp: new Date(),
-    };
-    this.chatHistory.push(userEntry);
-    this.messages.push({ role: "user", content: message });
-
-    const newEntries: ChatEntry[] = [userEntry];
-    const maxToolRounds = this.maxToolRounds;
-    let toolRounds = 0;
     const debug = process.env.HORUS_CONTEXT_DEBUG === 'true';
 
-    // GATHER PHASE: Context orchestration
+    // GATHER PHASE: Context orchestration (before adding user message)
+    let contextString: string | null = null;
     if (this.gatherPhase) {
       const contextRequest = this.contextIntegrator.buildContextRequest(
         message,
@@ -240,13 +229,28 @@ export class HorusAgent extends EventEmitter {
       const contextBundle = await this.gatherPhase.gather(contextRequest, debug);
 
       if (contextBundle && contextBundle.sources.length > 0) {
-        this.contextIntegrator.injectContextBundle(
-          contextBundle,
-          this.messages,
-          debug
-        );
+        // Build context string to merge with user message (avoids role alternation issues)
+        contextString = this.contextIntegrator.buildContextString(contextBundle, debug);
       }
     }
+
+    // Build final user message content (with context if available)
+    const userMessageContent = contextString
+      ? `${contextString}\n\n--- USER REQUEST ---\n${message}`
+      : message;
+
+    // Add user message to conversation
+    const userEntry: ChatEntry = {
+      type: "user",
+      content: message, // Display original message in chat history
+      timestamp: new Date(),
+    };
+    this.chatHistory.push(userEntry);
+    this.messages.push({ role: "user", content: userMessageContent }); // Send with context to API
+
+    const newEntries: ChatEntry[] = [userEntry];
+    const maxToolRounds = this.maxToolRounds;
+    let toolRounds = 0;
 
     // ACT PHASE: Execute agent loop
     try {
@@ -308,34 +312,11 @@ export class HorusAgent extends EventEmitter {
             newEntries.push(toolCallEntry);
           });
 
-          // Execute tool calls
+          // Execute tool calls and collect verification feedbacks
+          const verificationFeedbacks: string[] = [];
+
           for (const toolCall of finalToolCalls) {
             const result = await this.toolExecutor.executeTool(toolCall);
-
-            // VERIFY PHASE: Verify tool result
-            if (this.verifyPhase && result.success) {
-              const verificationResult = await this.verifyPhase.verify(
-                toolCall,
-                result,
-                debug
-              );
-
-              if (verificationResult && !verificationResult.passed) {
-                // Inject verification feedback
-                this.messages.push({
-                  role: "user",
-                  content: `⚠️ Verification failed:\n${verificationResult.feedback}\n\nPlease fix the issues above.`,
-                });
-
-                const feedbackEntry: ChatEntry = {
-                  type: "assistant",
-                  content: `⚠️ Verification issues detected:\n${verificationResult.feedback}`,
-                  timestamp: new Date(),
-                };
-                this.chatHistory.push(feedbackEntry);
-                newEntries.push(feedbackEntry);
-              }
-            }
 
             // Update the existing tool_call entry with the result
             const entryIndex = this.chatHistory.findIndex(
@@ -363,7 +344,7 @@ export class HorusAgent extends EventEmitter {
               }
             }
 
-            // Add tool result to messages
+            // Add tool result to messages (must come right after assistant with tool_calls)
             this.messages.push({
               role: "tool",
               content: result.success
@@ -371,6 +352,36 @@ export class HorusAgent extends EventEmitter {
                 : result.error || "Error",
               tool_call_id: toolCall.id,
             });
+
+            // VERIFY PHASE: Collect verification feedback (will be injected after all tool results)
+            if (this.verifyPhase && result.success) {
+              const verificationResult = await this.verifyPhase.verify(
+                toolCall,
+                result,
+                debug
+              );
+
+              if (verificationResult && !verificationResult.passed) {
+                verificationFeedbacks.push(verificationResult.feedback);
+              }
+            }
+          }
+
+          // Inject verification feedback AFTER all tool results (maintains role alternation)
+          if (verificationFeedbacks.length > 0) {
+            const combinedFeedback = verificationFeedbacks.join("\n\n");
+            this.messages.push({
+              role: "user",
+              content: `⚠️ Verification failed:\n${combinedFeedback}\n\nPlease fix the issues above.`,
+            });
+
+            const feedbackEntry: ChatEntry = {
+              type: "assistant",
+              content: `⚠️ Verification issues detected:\n${combinedFeedback}`,
+              timestamp: new Date(),
+            };
+            this.chatHistory.push(feedbackEntry);
+            newEntries.push(feedbackEntry);
           }
 
           // Get next response
@@ -424,27 +435,10 @@ export class HorusAgent extends EventEmitter {
   async *processUserMessageStream(
     message: string
   ): AsyncGenerator<StreamingChunk, void, unknown> {
-    // Add user message to conversation
-    const userEntry: ChatEntry = {
-      type: "user",
-      content: message,
-      timestamp: new Date(),
-    };
-    this.chatHistory.push(userEntry);
-    this.messages.push({ role: "user", content: message });
-
-    // Calculate input tokens
-    const inputTokens = this.tokenCounter.countMessageTokens(
-      this.messages as any
-    );
-    yield {
-      type: "token_count",
-      tokenCount: inputTokens,
-    };
-
     const debug = process.env.HORUS_CONTEXT_DEBUG === 'true';
 
-    // GATHER PHASE: Context orchestration
+    // GATHER PHASE: Context orchestration (before adding user message)
+    let contextString: string | null = null;
     if (this.gatherPhase) {
       const contextRequest = this.contextIntegrator.buildContextRequest(
         message,
@@ -457,13 +451,33 @@ export class HorusAgent extends EventEmitter {
       const contextBundle = await this.gatherPhase.gather(contextRequest, debug);
 
       if (contextBundle && contextBundle.sources.length > 0) {
-        this.contextIntegrator.injectContextBundle(
-          contextBundle,
-          this.messages,
-          debug
-        );
+        // Build context string to merge with user message (avoids role alternation issues)
+        contextString = this.contextIntegrator.buildContextString(contextBundle, debug);
       }
     }
+
+    // Build final user message content (with context if available)
+    const userMessageContent = contextString
+      ? `${contextString}\n\n--- USER REQUEST ---\n${message}`
+      : message;
+
+    // Add user message to conversation
+    const userEntry: ChatEntry = {
+      type: "user",
+      content: message, // Display original message in chat history
+      timestamp: new Date(),
+    };
+    this.chatHistory.push(userEntry);
+    this.messages.push({ role: "user", content: userMessageContent }); // Send with context to API
+
+    // Calculate input tokens
+    const inputTokens = this.tokenCounter.countMessageTokens(
+      this.messages as any
+    );
+    yield {
+      type: "token_count",
+      tokenCount: inputTokens,
+    };
 
     const maxToolRounds = this.maxToolRounds;
     let toolRounds = 0;
@@ -569,29 +583,11 @@ export class HorusAgent extends EventEmitter {
             };
           }
 
+          // Execute tool calls and collect verification feedbacks
+          const verificationFeedbacks: string[] = [];
+
           for (const toolCall of finalToolCalls) {
             const result = await this.toolExecutor.executeTool(toolCall);
-
-            // VERIFY PHASE
-            if (this.verifyPhase && result.success) {
-              const verificationResult = await this.verifyPhase.verify(
-                toolCall,
-                result,
-                debug
-              );
-
-              if (verificationResult && !verificationResult.passed) {
-                this.messages.push({
-                  role: "user",
-                  content: `⚠️ Verification failed:\n${verificationResult.feedback}\n\nPlease fix the issues above.`,
-                });
-
-                yield {
-                  type: "content",
-                  content: `\n\n⚠️ Verification issues:\n${verificationResult.feedback}\n`,
-                };
-              }
-            }
 
             const toolResultEntry: ChatEntry = {
               type: "tool_result",
@@ -610,6 +606,7 @@ export class HorusAgent extends EventEmitter {
               toolResult: result,
             };
 
+            // Add tool result to messages (must come right after assistant with tool_calls)
             this.messages.push({
               role: "tool",
               content: result.success
@@ -617,6 +614,33 @@ export class HorusAgent extends EventEmitter {
                 : result.error || "Error",
               tool_call_id: toolCall.id,
             });
+
+            // VERIFY PHASE: Collect verification feedback (will be injected after all tool results)
+            if (this.verifyPhase && result.success) {
+              const verificationResult = await this.verifyPhase.verify(
+                toolCall,
+                result,
+                debug
+              );
+
+              if (verificationResult && !verificationResult.passed) {
+                verificationFeedbacks.push(verificationResult.feedback);
+              }
+            }
+          }
+
+          // Inject verification feedback AFTER all tool results (maintains role alternation)
+          if (verificationFeedbacks.length > 0) {
+            const combinedFeedback = verificationFeedbacks.join("\n\n");
+            this.messages.push({
+              role: "user",
+              content: `⚠️ Verification failed:\n${combinedFeedback}\n\nPlease fix the issues above.`,
+            });
+
+            yield {
+              type: "content",
+              content: `\n\n⚠️ Verification issues:\n${combinedFeedback}\n`,
+            };
           }
         } else {
           // No tool calls, done

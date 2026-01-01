@@ -1,6 +1,5 @@
 import OpenAI from "openai";
 import type { ChatCompletionMessageParam } from "openai/resources/chat";
-import { getModelMaxContext } from "./model-configs.js";
 
 export type HorusMessage = ChatCompletionMessageParam;
 
@@ -26,8 +25,6 @@ export interface HorusToolCall {
   };
 }
 
-// SearchParameters and SearchOptions removed - not used with Ollama
-
 export interface HorusResponse {
   choices: {
     message: {
@@ -41,19 +38,71 @@ export interface HorusResponse {
 
 export class HorusClient {
   private client: OpenAI;
-  private currentModel = "devstral:24b";
+  private currentModel = "mistralai/Devstral-Small-2-24B-Instruct-2512";
 
   constructor(apiKey: string, model?: string, baseURL?: string) {
-    // Ollama accepts any API key value, but we use empty string if not provided
-    const actualApiKey = apiKey || "ollama";
+    // vLLM accepts any API key value for local deployment
+    const actualApiKey = apiKey || "vllm";
     this.client = new OpenAI({
       apiKey: actualApiKey,
-      baseURL: baseURL || process.env.HORUS_BASE_URL || "http://localhost:11434/v1",
+      baseURL: baseURL || process.env.HORUS_BASE_URL || "http://localhost:8000/v1",
       timeout: 360000,
     });
     if (model) {
       this.currentModel = model;
     }
+  }
+
+  /**
+   * Normalize messages for strict role alternation (required by vLLM/Mistral)
+   * - Merges system message into first user message
+   * - Ensures user/assistant alternation
+   * - Handles tool messages correctly
+   */
+  private normalizeMessages(messages: HorusMessage[]): HorusMessage[] {
+    if (messages.length === 0) return messages;
+
+    const normalized: HorusMessage[] = [];
+    let systemContent = "";
+
+    // Extract system messages and merge them
+    for (const msg of messages) {
+      if (msg.role === "system") {
+        systemContent += (systemContent ? "\n\n" : "") + (msg.content || "");
+      }
+    }
+
+    // Process non-system messages
+    for (const msg of messages) {
+      if (msg.role === "system") continue;
+
+      if (msg.role === "user") {
+        // Merge system content into first user message
+        if (systemContent) {
+          const userContent = typeof msg.content === "string" ? msg.content : "";
+          normalized.push({
+            ...msg,
+            content: `[SYSTEM INSTRUCTIONS]\n${systemContent}\n[END SYSTEM INSTRUCTIONS]\n\n${userContent}`,
+          });
+          systemContent = ""; // Only merge once
+        } else {
+          normalized.push(msg);
+        }
+      } else {
+        // assistant, tool messages
+        normalized.push(msg);
+      }
+    }
+
+    // If we still have system content but no user message, create one
+    if (systemContent && normalized.length === 0) {
+      normalized.push({
+        role: "user",
+        content: `[SYSTEM INSTRUCTIONS]\n${systemContent}\n[END SYSTEM INSTRUCTIONS]`,
+      });
+    }
+
+    return normalized;
   }
 
   setModel(model: string): void {
@@ -71,22 +120,17 @@ export class HorusClient {
   ): Promise<HorusResponse> {
     try {
       const selectedModel = model || this.currentModel;
-      const maxContext = getModelMaxContext(selectedModel);
+
+      // Normalize messages for strict role alternation (vLLM/Mistral requirement)
+      const normalizedMessages = this.normalizeMessages(messages);
 
       const requestPayload: any = {
         model: selectedModel,
-        messages,
+        messages: normalizedMessages,
         tools: tools || [],
         tool_choice: tools && tools.length > 0 ? "auto" : undefined,
-        temperature: 0.2, // Lower temperature for more deterministic code generation
-        // No max_tokens limit for local models - let Ollama manage it
-
-        // Ollama-specific optimizations for quality
-        // Context size is dynamically determined based on the model
-        num_ctx: maxContext, // Maximum context window for current model
-        num_predict: -1, // Generate until natural stopping point (better for code generation)
-        top_p: 0.95, // Higher diversity for better code quality
-        repeat_penalty: 1.1, // Avoid repetitions in tool calls
+        temperature: 0.15, // Low temperature for deterministic tool calling (Mistral recommendation)
+        top_p: 0.95,
       };
 
       const response =
@@ -105,23 +149,18 @@ export class HorusClient {
   ): AsyncGenerator<any, void, unknown> {
     try {
       const selectedModel = model || this.currentModel;
-      const maxContext = getModelMaxContext(selectedModel);
+
+      // Normalize messages for strict role alternation (vLLM/Mistral requirement)
+      const normalizedMessages = this.normalizeMessages(messages);
 
       const requestPayload: any = {
         model: selectedModel,
-        messages,
+        messages: normalizedMessages,
         tools: tools || [],
         tool_choice: tools && tools.length > 0 ? "auto" : undefined,
-        temperature: 0.2, // Lower temperature for more deterministic code generation
+        temperature: 0.15, // Low temperature for deterministic tool calling (Mistral recommendation)
+        top_p: 0.95,
         stream: true,
-        // No max_tokens limit for local models - let Ollama manage it
-
-        // Ollama-specific optimizations for quality
-        // Context size is dynamically determined based on the model
-        num_ctx: maxContext, // Maximum context window for current model
-        num_predict: -1, // Generate until natural stopping point (better for code generation)
-        top_p: 0.95, // Higher diversity for better code quality
-        repeat_penalty: 1.1, // Avoid repetitions in tool calls
       };
 
       const stream = (await this.client.chat.completions.create(
