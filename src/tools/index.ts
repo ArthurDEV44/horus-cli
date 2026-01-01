@@ -14,3 +14,8 @@ export { MultiEditTool } from "./multi-edit.js";
 // Phase 3: Web Tools
 export { WebFetchTool } from "./web-fetch.js";
 export { WebSearchTool } from "./web-search.js";
+
+// Phase 5: Planning Mode Tools
+export { EnterPlanModeTool } from "./enter-plan-mode.js";
+export { ExitPlanModeTool } from "./exit-plan-mode.js";
+export { AskUserQuestionTool } from "./ask-user-question.js";

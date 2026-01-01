@@ -7,6 +7,7 @@ import { useEnhancedInput, Key } from "./use-enhanced-input.js";
 import { filterCommandSuggestions } from "../ui/components/command-suggestions.js";
 import { loadModelConfig, updateCurrentModel } from "../utils/model-config.js";
 import { getHookManager } from "./hook-manager.js";
+import { getPlanningModeService, type OperationMode } from "../utils/planning-mode-service.js";
 
 // Slash commands system
 import {
@@ -59,11 +60,24 @@ export function useInputHandler({
   const [showModelSelection, setShowModelSelection] = useState(false);
   const [selectedModelIndex, setSelectedModelIndex] = useState(0);
   const [slashCommandsInitialized, setSlashCommandsInitialized] = useState(false);
-  const [autoEditEnabled, setAutoEditEnabled] = useState(() => {
-    const confirmationService = ConfirmationService.getInstance();
-    const sessionFlags = confirmationService.getSessionFlags();
-    return sessionFlags.allOperations;
+
+  // Operation mode: normal, auto-edit, planning
+  const planningService = getPlanningModeService();
+  const [operationMode, setOperationMode] = useState<OperationMode>(() => {
+    return planningService.getMode();
   });
+
+  // Sync with PlanningModeService
+  useEffect(() => {
+    const unsubscribe = planningService.onModeChange((state) => {
+      setOperationMode(state.mode);
+    });
+    return unsubscribe;
+  }, []);
+
+  // Derived state for backward compatibility
+  const autoEditEnabled = operationMode === 'auto-edit';
+  const isPlanningMode = operationMode === 'planning';
 
   // Initialize slash commands system on mount
   useEffect(() => {
@@ -83,19 +97,18 @@ export function useInputHandler({
       return true; // Prevent default handling
     }
 
-    // Handle shift+tab to toggle auto-edit mode
+    // Handle shift+tab to cycle through modes: normal -> auto-edit -> planning -> normal
     if (key.shift && key.tab) {
-      const newAutoEditState = !autoEditEnabled;
-      setAutoEditEnabled(newAutoEditState);
+      const newMode = planningService.cycleMode();
 
+      // Sync ConfirmationService with the new mode
       const confirmationService = ConfirmationService.getInstance();
-      if (newAutoEditState) {
-        // Enable auto-edit: set all operations to be accepted
+      if (newMode === 'auto-edit') {
         confirmationService.setSessionFlag("allOperations", true);
       } else {
-        // Disable auto-edit: reset session flags
         confirmationService.resetSession();
       }
+
       return true; // Handled
     }
 
@@ -613,5 +626,7 @@ export function useInputHandler({
     availableModels,
     agent,
     autoEditEnabled,
+    isPlanningMode,
+    operationMode,
   };
 }

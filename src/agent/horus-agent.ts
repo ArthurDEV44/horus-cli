@@ -17,6 +17,9 @@ import {
   MultiEditTool,
   WebFetchTool,
   WebSearchTool,
+  EnterPlanModeTool,
+  ExitPlanModeTool,
+  AskUserQuestionTool,
 } from "../tools/index.js";
 import { ToolResult } from "../types/index.js";
 import { EventEmitter } from "events";
@@ -120,6 +123,11 @@ export class HorusAgent extends EventEmitter {
     this.webFetch = new WebFetchTool();
     this.webSearch = new WebSearchTool();
 
+    // Phase 5: Planning Mode Tools
+    const enterPlanMode = new EnterPlanModeTool();
+    const exitPlanMode = new ExitPlanModeTool();
+    const askUserQuestion = new AskUserQuestionTool();
+
     // Initialize modular components
     this.toolExecutor = new ToolExecutor(
       this.textEditor,
@@ -132,7 +140,10 @@ export class HorusAgent extends EventEmitter {
       this.ls,
       this.multiEdit,
       this.webFetch,
-      this.webSearch
+      this.webSearch,
+      enterPlanMode,
+      exitPlanMode,
+      askUserQuestion
     );
     this.streamingManager = new StreamingManager(
       this.horusClient,

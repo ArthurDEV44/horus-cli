@@ -56,6 +56,7 @@ function ModernChatInterfaceWithAgent({
     commandSuggestions,
     availableModels,
     autoEditEnabled,
+    operationMode,
   } = useInputHandler({
     agent,
     chatHistory,
@@ -308,6 +309,7 @@ function ModernChatInterfaceWithAgent({
         autoEditEnabled={autoEditEnabled}
         mcpServersCount={mcpServersCount}
         isProcessing={isProcessing || isStreaming}
+        operationMode={operationMode}
       />
 
       {/* Welcome tips (only when no chat history) */}
@@ -320,7 +322,7 @@ function ModernChatInterfaceWithAgent({
             <Text color="gray">• Ask questions or request code changes in natural language</Text>
             <Text color="gray">• Type / to see available slash commands</Text>
             <Text color="gray">• Use /help for full documentation</Text>
-            <Text color="gray">• Press Shift+Tab to toggle auto-edit mode</Text>
+            <Text color="gray">• Press Shift+Tab to cycle modes (normal → auto → plan)</Text>
             <Text color="gray">• Create custom commands in .horus/commands/</Text>
           </Box>
         </Box>

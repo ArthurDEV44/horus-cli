@@ -512,6 +512,89 @@ const BASE_HORUS_TOOLS: HorusTool[] = [
       },
     },
   },
+  // Phase 5: Planning Mode Tools
+  {
+    type: "function",
+    function: {
+      name: "enter_plan_mode",
+      description: "Enter planning mode for complex tasks. In planning mode, you can explore the codebase (read files, search, grep) but cannot make modifications. Use this proactively for non-trivial implementation tasks to design an approach before execution.",
+      parameters: {
+        type: "object",
+        properties: {
+          plan_file: {
+            type: "string",
+            description: "Optional path to a plan file where you will write your implementation plan",
+          },
+        },
+        required: [],
+      },
+    },
+  },
+  {
+    type: "function",
+    function: {
+      name: "exit_plan_mode",
+      description: "Exit planning mode after your plan is ready for execution. This transitions from read-only exploration to allowing file modifications.",
+      parameters: {
+        type: "object",
+        properties: {},
+        required: [],
+      },
+    },
+  },
+  {
+    type: "function",
+    function: {
+      name: "ask_user_question",
+      description: "Ask the user structured questions with predefined options. Use this during planning to clarify requirements, validate assumptions, or get user decisions on implementation choices.",
+      parameters: {
+        type: "object",
+        properties: {
+          questions: {
+            type: "array",
+            description: "Array of questions to ask (1-4 questions)",
+            items: {
+              type: "object",
+              properties: {
+                question: {
+                  type: "string",
+                  description: "The complete question to ask the user",
+                },
+                header: {
+                  type: "string",
+                  description: "Short label for the question (max 12 chars)",
+                },
+                options: {
+                  type: "array",
+                  description: "2-4 answer options",
+                  items: {
+                    type: "object",
+                    properties: {
+                      label: {
+                        type: "string",
+                        description: "Short label for the option (1-5 words)",
+                      },
+                      description: {
+                        type: "string",
+                        description: "Explanation of what this option means",
+                      },
+                    },
+                    required: ["label", "description"],
+                  },
+                },
+                multiSelect: {
+                  type: "boolean",
+                  description: "Allow selecting multiple options (default: false)",
+                },
+              },
+              required: ["question", "header", "options", "multiSelect"],
+            },
+          },
+        },
+        required: ["questions"],
+      },
+    },
+  },
 ];
 
 // Morph Fast Apply tool (conditional)

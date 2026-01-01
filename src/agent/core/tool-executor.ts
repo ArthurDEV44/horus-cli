@@ -12,8 +12,24 @@ import {
   MultiEditTool,
   WebFetchTool,
   WebSearchTool,
+  EnterPlanModeTool,
+  ExitPlanModeTool,
+  AskUserQuestionTool,
 } from "../../tools/index.js";
 import { getMCPManager } from "../../horus/tools.js";
+import { getPlanningModeService } from "../../utils/planning-mode-service.js";
+
+// Tools that are blocked in planning mode (write operations)
+const WRITE_TOOLS = new Set([
+  "create_file",
+  "str_replace_editor",
+  "replace_lines",
+  "edit_file",
+  "multi_edit",
+  "bash",
+  "create_todo_list",
+  "update_todo_list",
+]);
 
 /**
  * ToolExecutor - Handles execution of all tools (built-in and MCP)
@@ -24,6 +40,8 @@ import { getMCPManager } from "../../horus/tools.js";
  * - Parse tool arguments and handle errors
  */
 export class ToolExecutor {
+  private planningService = getPlanningModeService();
+
   constructor(
     private textEditor: TextEditorTool,
     private morphEditor: MorphEditorTool | null,
@@ -35,7 +53,10 @@ export class ToolExecutor {
     private ls: LsTool,
     private multiEdit: MultiEditTool,
     private webFetch: WebFetchTool,
-    private webSearch: WebSearchTool
+    private webSearch: WebSearchTool,
+    private enterPlanMode: EnterPlanModeTool,
+    private exitPlanMode: ExitPlanModeTool,
+    private askUserQuestion: AskUserQuestionTool
   ) {}
 
   /**
@@ -44,8 +65,19 @@ export class ToolExecutor {
   async executeTool(toolCall: HorusToolCall): Promise<ToolResult> {
     try {
       const args = JSON.parse(toolCall.function.arguments);
+      const toolName = toolCall.function.name;
 
-      switch (toolCall.function.name) {
+      // Block write operations in planning mode (except exit_plan_mode)
+      if (this.planningService.isPlanningMode() &&
+          WRITE_TOOLS.has(toolName) &&
+          toolName !== "exit_plan_mode") {
+        return {
+          success: false,
+          error: `Tool "${toolName}" is blocked in planning mode. Use exit_plan_mode first to enable file modifications.`,
+        };
+      }
+
+      switch (toolName) {
         case "view_file":
           const range: [number, number] | undefined =
             args.start_line && args.end_line
@@ -161,6 +193,20 @@ export class ToolExecutor {
             allowedDomains: args.allowed_domains,
             blockedDomains: args.blocked_domains,
             maxResults: args.max_results,
+          });
+
+        // Phase 5: Planning Mode Tools
+        case "enter_plan_mode":
+          return await this.enterPlanMode.execute({
+            planFile: args.plan_file,
+          });
+
+        case "exit_plan_mode":
+          return await this.exitPlanMode.execute();
+
+        case "ask_user_question":
+          return await this.askUserQuestion.execute({
+            questions: args.questions,
           });
 
         default:

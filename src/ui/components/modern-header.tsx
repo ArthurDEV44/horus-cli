@@ -2,12 +2,14 @@ import React from 'react';
 import { Box, Text } from 'ink';
 import { DesignSystem as DS } from '../theme/design-system.js';
 import { getModelMaxContext } from '../../horus/model-configs.js';
+import type { OperationMode } from '../../utils/planning-mode-service.js';
 
 interface ModernHeaderProps {
   model: string;
   autoEditEnabled: boolean;
   mcpServersCount?: number;
   isProcessing?: boolean;
+  operationMode?: OperationMode;
 }
 
 /**
@@ -19,9 +21,24 @@ export const ModernHeader: React.FC<ModernHeaderProps> = ({
   autoEditEnabled,
   mcpServersCount = 0,
   isProcessing = false,
+  operationMode = 'normal',
 }) => {
   const maxContext = getModelMaxContext(model);
   const contextFormatted = DS.Formatters.formatContext(maxContext);
+
+  // Mode indicator configuration
+  const getModeIndicator = () => {
+    switch (operationMode) {
+      case 'planning':
+        return { icon: '◇', label: 'plan', color: 'magenta' as const };
+      case 'auto-edit':
+        return { icon: DS.Icons.success, label: 'auto', color: 'green' as const };
+      default:
+        return { icon: DS.Icons.pending, label: 'normal', color: 'gray' as const };
+    }
+  };
+
+  const modeIndicator = getModeIndicator();
 
   return (
     <Box flexDirection="column" marginBottom={1}>
@@ -50,12 +67,12 @@ export const ModernHeader: React.FC<ModernHeaderProps> = ({
 
         {/* Right side: Status indicators */}
         <Box flexDirection="row">
-          {/* Auto-edit status */}
+          {/* Mode indicator */}
           <Box marginRight={2}>
-            <Text color={autoEditEnabled ? 'green' : 'gray'}>
-              {autoEditEnabled ? DS.Icons.success : DS.Icons.pending}
+            <Text color={modeIndicator.color}>
+              {modeIndicator.icon}
             </Text>
-            <Text color={autoEditEnabled ? 'green' : 'gray'}> auto-edit</Text>
+            <Text color={modeIndicator.color}> {modeIndicator.label}</Text>
           </Box>
 
           {/* MCP servers */}

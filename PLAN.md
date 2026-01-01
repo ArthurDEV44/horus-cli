@@ -1,7 +1,7 @@
 # PLAN: Parité Fonctionnelle Horus CLI ↔ Claude Code
 
 > Document de suivi pour l'implémentation des fonctionnalités Claude Code dans Horus CLI.
-> Dernière mise à jour: 2026-01-01
+> Dernière mise à jour: 2026-01-01 (Phase 5 complétée)
 
 ---
 
@@ -9,7 +9,7 @@
 
 **Objectif**: Atteindre la parité fonctionnelle avec Claude Code d'Anthropic, en utilisant des modèles open source (Mistral/Devstral en priorité).
 
-**Parité actuelle estimée**: ~80% (après Phase 4 Hooks System)
+**Parité actuelle estimée**: ~85% (après Phase 5 Planning Mode)
 
 ---
 
@@ -138,23 +138,26 @@ Claude Code utilise des tools séparés pour chaque opération. Horus combine ce
 
 ---
 
-### Phase 5: Planning Mode 🔲 À FAIRE
+### Phase 5: Planning Mode ✅ COMPLÉTÉ
 
-- [ ] **Mode Planning**
-  - Toggle avec `Shift+Tab` (actuellement auto-edit)
+- [x] **Mode Planning**
+  - Toggle avec `Shift+Tab` (cycle: normal → auto-edit → planning)
   - État read-only: peut lire/chercher mais pas modifier
-  - Indicateur visuel dans status bar
+  - Indicateur visuel dans header (◇ plan en magenta)
+  - Service: `src/utils/planning-mode-service.ts`
 
-- [ ] **ExitPlanMode Tool**
+- [x] **ExitPlanMode Tool**
   - Fichier: `src/tools/exit-plan-mode.ts`
   - Transition plan → exécution après approbation
 
-- [ ] **EnterPlanMode Tool**
+- [x] **EnterPlanMode Tool**
+  - Fichier: `src/tools/enter-plan-mode.ts`
   - Activation programmatique du mode planning
   - Pour tâches complexes nécessitant planification
 
-- [ ] **AskUserQuestion Tool**
-  - Questions structurées avec options
+- [x] **AskUserQuestion Tool**
+  - Fichier: `src/tools/ask-user-question.ts`
+  - Questions structurées avec options (2-4 choix)
   - Multi-select support
   - Utilisé pour clarifications pendant planning
 
