@@ -57,28 +57,49 @@ interface BraveSearchResponse {
   };
 }
 
+// Tavily Search API types
+interface TavilySearchResult {
+  title: string;
+  url: string;
+  content: string;
+  score: number;
+  favicon?: string;
+}
+
+interface TavilySearchResponse {
+  query: string;
+  answer?: string;
+  results: TavilySearchResult[];
+  response_time: number;
+  usage?: { credits: number };
+}
+
 /**
  * WebSearchTool - Web search via multiple providers
  *
  * Configuration via environment variables:
- * - HORUS_SEARCH_PROVIDER: Search provider (default: brave if API key set, else searxng)
- * - HORUS_SEARXNG_URL: SearXNG instance URL (default: https://searx.be)
+ * - HORUS_SEARCH_PROVIDER: Search provider (default: auto-detect based on available keys)
+ * - HORUS_TAVILY_API_KEY: Tavily API key (recommended for AI agents)
  * - HORUS_BRAVE_API_KEY: Brave Search API key
- * - HORUS_TAVILY_API_KEY: Tavily API key (future)
+ * - HORUS_SEARXNG_URL: SearXNG instance URL (default: https://searx.be)
  */
 export class WebSearchTool {
   private provider: SearchProvider;
   private searxngUrl: string;
   private braveApiKey: string | undefined;
+  private tavilyApiKey: string | undefined;
 
   constructor() {
+    this.tavilyApiKey = process.env.HORUS_TAVILY_API_KEY;
     this.braveApiKey = process.env.HORUS_BRAVE_API_KEY;
     this.searxngUrl = process.env.HORUS_SEARXNG_URL || "https://searx.be";
 
-    // Auto-select provider based on available credentials
+    // Auto-select provider based on available credentials (priority: Tavily > Brave > SearXNG)
     const envProvider = process.env.HORUS_SEARCH_PROVIDER as SearchProvider;
     if (envProvider) {
       this.provider = envProvider;
+    } else if (this.tavilyApiKey) {
+      this.provider = "tavily";
     } else if (this.braveApiKey) {
       this.provider = "brave";
     } else {
@@ -116,13 +137,19 @@ export class WebSearchTool {
           results = await this.searchBrave(query, maxResults);
           break;
         case "tavily":
-          return {
-            success: false,
-            error: "Tavily Search not yet implemented. Set HORUS_SEARCH_PROVIDER=searxng or brave",
-          };
+          if (!this.tavilyApiKey) {
+            return {
+              success: false,
+              error: "Tavily Search requires HORUS_TAVILY_API_KEY environment variable",
+            };
+          }
+          results = await this.searchTavily(query, maxResults);
+          break;
         default:
-          // Fallback: try Brave if key available, else SearXNG
-          if (this.braveApiKey) {
+          // Fallback: try Tavily > Brave > SearXNG based on available keys
+          if (this.tavilyApiKey) {
+            results = await this.searchTavily(query, maxResults);
+          } else if (this.braveApiKey) {
             results = await this.searchBrave(query, maxResults);
           } else {
             results = await this.searchSearXNG(query, maxResults);
@@ -258,6 +285,49 @@ export class WebSearchTool {
       url: r.url,
       snippet: r.description,
       engine: "brave",
+    }));
+  }
+
+  /**
+   * Search using Tavily API
+   */
+  private async searchTavily(query: string, maxResults: number): Promise<SearchResult[]> {
+    const response = await fetch("https://api.tavily.com/search", {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        "Authorization": `Bearer ${this.tavilyApiKey}`,
+      },
+      body: JSON.stringify({
+        query,
+        max_results: Math.min(maxResults, 20), // Tavily max is 20
+        search_depth: "basic",
+        include_answer: false,
+        include_raw_content: false,
+      }),
+    });
+
+    if (!response.ok) {
+      if (response.status === 401) {
+        throw new Error("Invalid Tavily API key. Check HORUS_TAVILY_API_KEY");
+      }
+      if (response.status === 429) {
+        throw new Error("Tavily API rate limit exceeded. Try again later");
+      }
+      throw new Error(`Tavily Search returned ${response.status}: ${response.statusText}`);
+    }
+
+    const data = (await response.json()) as TavilySearchResponse;
+
+    if (!data.results || !Array.isArray(data.results)) {
+      return [];
+    }
+
+    return data.results.slice(0, maxResults).map((r) => ({
+      title: r.title,
+      url: r.url,
+      snippet: r.content,
+      engine: "tavily",
     }));
   }
 
