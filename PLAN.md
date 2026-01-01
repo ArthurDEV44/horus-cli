@@ -95,8 +95,14 @@ Claude Code utilise des tools séparés pour chaque opération. Horus combine ce
 
 - [x] **WebSearch Tool**
   - Fichier: `src/tools/web-search.ts`
-  - Recherche web via SearXNG (extensible pour Brave/Tavily)
+  - Providers supportés:
+    - **Brave Search API** (recommandé) - 2000 req/mois gratuit
+    - SearXNG (self-hosted)
   - Paramètres: `query`, `allowed_domains`, `blocked_domains`, `max_results`
+  - Configuration:
+    - `HORUS_BRAVE_API_KEY` - Clé API Brave (auto-sélectionné si présent)
+    - `HORUS_SEARCH_PROVIDER` - Force le provider (`brave`, `searxng`)
+    - `HORUS_SEARXNG_URL` - URL instance SearXNG custom
   - Retourne: résultats formatés en markdown
 
 ---
