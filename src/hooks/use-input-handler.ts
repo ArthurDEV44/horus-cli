@@ -6,6 +6,7 @@ import { useEnhancedInput, Key } from "./use-enhanced-input.js";
 
 import { filterCommandSuggestions } from "../ui/components/command-suggestions.js";
 import { loadModelConfig, updateCurrentModel } from "../utils/model-config.js";
+import { getHookManager } from "./hook-manager.js";
 
 // Slash commands system
 import {
@@ -440,6 +441,38 @@ export function useInputHandler({
   };
 
   const processUserMessage = async (userInput: string) => {
+    // Execute PreSubmit hooks before sending message
+    const hookManager = getHookManager();
+    const preSubmitResults = await hookManager.executeHooks("PreSubmit", {
+      message: userInput,
+    });
+
+    // Log hook results if any ran (even if they failed with continue mode)
+    if (preSubmitResults.length > 0) {
+      const hookSummary = preSubmitResults.map(r =>
+        `${r.success ? '✓' : '⚠'} ${r.name}: ${r.success ? 'passed' : r.error || 'failed'}`
+      ).join('\n');
+
+      const hookEntry: ChatEntry = {
+        type: 'assistant',
+        content: `PreSubmit hooks:\n${hookSummary}`,
+        timestamp: new Date(),
+      };
+      setChatHistory((prev) => [...prev, hookEntry]);
+    }
+
+    // Check if any blocking hook failed
+    if (hookManager.hasBlockingFailure(preSubmitResults)) {
+      const failedHook = preSubmitResults.find(r => r.blocked);
+      const errorEntry: ChatEntry = {
+        type: 'assistant',
+        content: `❌ PreSubmit hook "${failedHook?.name}" blocked the message: ${failedHook?.error}`,
+        timestamp: new Date(),
+      };
+      setChatHistory((prev) => [...prev, errorEntry]);
+      return; // Don't process the message
+    }
+
     const userEntry: ChatEntry = {
       type: "user",
       content: userInput,

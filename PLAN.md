@@ -9,7 +9,7 @@
 
 **Objectif**: Atteindre la parité fonctionnelle avec Claude Code d'Anthropic, en utilisant des modèles open source (Mistral/Devstral en priorité).
 
-**Parité actuelle estimée**: ~75% (après Phase 3 Web Tools)
+**Parité actuelle estimée**: ~80% (après Phase 4 Hooks System)
 
 ---
 
@@ -101,22 +101,32 @@ Claude Code utilise des tools séparés pour chaque opération. Horus combine ce
 
 ---
 
-### Phase 4: Hooks System 🔲 À FAIRE
+### Phase 4: Hooks System ✅ COMPLÉTÉ
 
-- [ ] **Hooks Infrastructure**
+- [x] **Hooks Infrastructure**
   - Fichier: `src/hooks/hook-manager.ts`
-  - Types: `PreToolHook`, `PostToolHook`, `PreSubmitHook`, `PostSubmitHook`
-  - Configuration: `.horus/hooks.json` ou dans settings
+  - Types: `src/hooks/types.ts`
+  - Configuration: `.horus/hooks.json` et `~/.horus/hooks.json`
 
-- [ ] **Hook Types à implémenter**
-  - [ ] `PreEdit` - Avant modification fichier (ex: prettier)
-  - [ ] `PostEdit` - Après modification (ex: lint check)
-  - [ ] `PreCommit` - Avant commit
-  - [ ] `PreSubmit` - Avant envoi message
+- [x] **Hook Types implémentés**
+  - [x] `PreEdit` - Avant modification fichier (ex: prettier)
+  - [x] `PostEdit` - Après modification (ex: lint check)
+  - [x] `PreCommit` - Avant commit (intégré dans `/commit`)
+  - [x] `PreSubmit` - Avant envoi message (intégré dans use-input-handler)
 
-- [ ] **Commande /hooks**
-  - Interface interactive pour configurer les hooks
-  - CRUD sur les hooks
+- [x] **Commande /hooks**
+  - `/hooks list` - Lister tous les hooks
+  - `/hooks add <name> <type> <command>` - Ajouter un hook
+  - `/hooks remove <name>` - Supprimer un hook
+  - `/hooks toggle <name>` - Activer/désactiver un hook
+
+- [x] **Variables de contexte**
+  - `$FILE` - Chemin du fichier (PreEdit/PostEdit)
+  - `$CONTENT` - Contenu original (PreEdit)
+  - `$NEW_CONTENT` - Nouveau contenu (PostEdit)
+  - `$MESSAGE` - Message utilisateur (PreSubmit)
+  - `$COMMIT_MSG` - Message de commit (PreCommit)
+  - `$STAGED_FILES` - Fichiers stagés (PreCommit)
 
 ---
 

@@ -5,6 +5,7 @@ import { ToolResult, EditorCommand } from "../types/index.js";
 import { ConfirmationService } from "../utils/confirmation-service.js";
 import { ContextTelemetry } from "../utils/context-telemetry.js";
 import { createTokenCounter } from "../utils/token-counter.js";
+import { getHookManager } from "../hooks/hook-manager.js";
 
 export class TextEditorTool {
   private editHistory: EditorCommand[] = [];
@@ -342,7 +343,30 @@ export class TextEditorTool {
       const newContent = replaceAll
         ? content.split(oldStr).join(newStr)
         : content.replace(oldStr, newStr);
+
+      // Execute PreEdit hooks
+      const hookManager = getHookManager();
+      const preEditResults = await hookManager.executeHooks("PreEdit", {
+        filePath: resolvedPath,
+        content,
+        newContent,
+      });
+
+      if (hookManager.hasBlockingFailure(preEditResults)) {
+        const failedHook = preEditResults.find(r => r.blocked);
+        return {
+          success: false,
+          error: `PreEdit hook "${failedHook?.name}" blocked the operation: ${failedHook?.error}`,
+        };
+      }
+
       await writeFilePromise(resolvedPath, newContent, "utf-8");
+
+      // Execute PostEdit hooks
+      await hookManager.executeHooks("PostEdit", {
+        filePath: resolvedPath,
+        newContent,
+      });
 
       this.editHistory.push({
         command: "str_replace",
@@ -433,7 +457,29 @@ export class TextEditorTool {
 
       const dir = path.dirname(resolvedPath);
       await fs.ensureDir(dir);
+
+      // Execute PreEdit hooks (for file creation)
+      const hookManager = getHookManager();
+      const preEditResults = await hookManager.executeHooks("PreEdit", {
+        filePath: resolvedPath,
+        newContent: content,
+      });
+
+      if (hookManager.hasBlockingFailure(preEditResults)) {
+        const failedHook = preEditResults.find(r => r.blocked);
+        return {
+          success: false,
+          error: `PreEdit hook "${failedHook?.name}" blocked the operation: ${failedHook?.error}`,
+        };
+      }
+
       await writeFilePromise(resolvedPath, content, "utf-8");
+
+      // Execute PostEdit hooks
+      await hookManager.executeHooks("PostEdit", {
+        filePath: resolvedPath,
+        newContent: content,
+      });
 
       this.editHistory.push({
         command: "create",
@@ -582,7 +628,29 @@ export class TextEditorTool {
       lines.splice(startLine - 1, endLine - startLine + 1, ...replacementLines);
       const newFileContent = lines.join("\n");
 
+      // Execute PreEdit hooks
+      const hookManager = getHookManager();
+      const preEditResults = await hookManager.executeHooks("PreEdit", {
+        filePath: resolvedPath,
+        content: fileContent,
+        newContent: newFileContent,
+      });
+
+      if (hookManager.hasBlockingFailure(preEditResults)) {
+        const failedHook = preEditResults.find(r => r.blocked);
+        return {
+          success: false,
+          error: `PreEdit hook "${failedHook?.name}" blocked the operation: ${failedHook?.error}`,
+        };
+      }
+
       await writeFilePromise(resolvedPath, newFileContent, "utf-8");
+
+      // Execute PostEdit hooks
+      await hookManager.executeHooks("PostEdit", {
+        filePath: resolvedPath,
+        newContent: newFileContent,
+      });
 
       this.editHistory.push({
         command: "str_replace",

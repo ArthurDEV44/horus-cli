@@ -11,6 +11,7 @@ import { getCommandSuggestions, getCommandCounts } from '../registry.js';
 import { getCommandDirectoriesStatus, createCommandTemplate } from '../loader.js';
 import { loadModelConfig, updateCurrentModel } from '../../../utils/model-config.js';
 import { ConfirmationService } from '../../../utils/confirmation-service.js';
+import { getHookManager } from '../../../hooks/hook-manager.js';
 
 /**
  * /help - Show help information
@@ -373,6 +374,39 @@ ${diffResult.output || 'No stats available'}`;
 
       commitMessage = commitMessage.trim().replace(/^["']|["']$/g, '');
 
+      // Execute PreCommit hooks
+      const hookManager = getHookManager();
+      const stagedFilesResult = await agent.executeBashCommand('git diff --cached --name-only');
+      const stagedFiles = stagedFilesResult.output?.trim().split('\n').filter(f => f) || [];
+
+      const preCommitResults = await hookManager.executeHooks('PreCommit', {
+        commitMessage,
+        stagedFiles,
+      });
+
+      if (hookManager.hasBlockingFailure(preCommitResults)) {
+        const failedHook = preCommitResults.find(r => r.blocked);
+        setProcessing(false);
+        setStreaming(false);
+        return {
+          handled: true,
+          error: `PreCommit hook "${failedHook?.name}" blocked the commit: ${failedHook?.error}`,
+        };
+      }
+
+      // Log hook results if any ran
+      if (preCommitResults.length > 0) {
+        const hookSummary = preCommitResults.map(r =>
+          `  ${r.success ? '✓' : '⚠'} ${r.name} (${r.duration}ms)`
+        ).join('\n');
+        const hookEntry: ChatEntry = {
+          type: 'assistant',
+          content: `PreCommit hooks:\n${hookSummary}`,
+          timestamp: new Date(),
+        };
+        addChatEntry(hookEntry);
+      }
+
       // Execute commit
       const commitResult = await agent.executeBashCommand(`git commit -m "${commitMessage}"`);
 
@@ -502,6 +536,168 @@ Please include:
 };
 
 /**
+ * /hooks - Manage hooks
+ */
+const hooksCommand: SlashCommand = {
+  name: 'hooks',
+  description: 'Manage execution hooks',
+  scope: 'builtin',
+  argumentHint: '[list|add|remove|toggle] [options]',
+  execute: async (ctx: CommandContext): Promise<CommandResult> => {
+    const { args, addChatEntry } = ctx;
+    const hookManager = getHookManager();
+
+    // Load hooks first
+    await hookManager.loadHooks();
+
+    const subcommand = args[0]?.toLowerCase() || 'list';
+
+    switch (subcommand) {
+      case 'list': {
+        const hooks = await hookManager.getHooks();
+
+        if (hooks.length === 0) {
+          return {
+            handled: true,
+            message: `# Hooks
+
+No hooks configured.
+
+Use \`/hooks add <name> <type> <command>\` to add a hook.
+
+Types: PreEdit, PostEdit, PreCommit, PreSubmit`,
+          };
+        }
+
+        const hookLines = hooks.map(h => {
+          const status = h.enabled ? '✓' : '✗';
+          const mode = h.failureMode === 'block' ? '[block]' : '';
+          return `  ${status} ${h.name.padEnd(20)} ${h.type.padEnd(12)} ${mode}\n      ${h.command}`;
+        }).join('\n\n');
+
+        const entry: ChatEntry = {
+          type: 'assistant',
+          content: `# Hooks
+
+${hookLines}
+
+Commands:
+  /hooks add <name> <type> <command>
+  /hooks remove <name>
+  /hooks toggle <name>`,
+          timestamp: new Date(),
+        };
+        addChatEntry(entry);
+        return { handled: true };
+      }
+
+      case 'add': {
+        if (args.length < 4) {
+          return {
+            handled: true,
+            message: `Usage: /hooks add <name> <type> <command>
+
+Types: PreEdit, PostEdit, PreCommit, PreSubmit
+
+Example: /hooks add prettier PostEdit "prettier --write $FILE"`,
+          };
+        }
+
+        const name = args[1];
+        const type = args[2] as any;
+        const command = args.slice(3).join(' ');
+
+        const validTypes = ['PreEdit', 'PostEdit', 'PreCommit', 'PreSubmit'];
+        if (!validTypes.includes(type)) {
+          return {
+            handled: true,
+            error: `Invalid hook type: ${type}. Valid types: ${validTypes.join(', ')}`,
+          };
+        }
+
+        try {
+          await hookManager.addHook({
+            name,
+            type,
+            command,
+            enabled: true,
+          });
+
+          return {
+            handled: true,
+            message: `✓ Hook "${name}" added (${type})`,
+          };
+        } catch (error: any) {
+          return {
+            handled: true,
+            error: error.message,
+          };
+        }
+      }
+
+      case 'remove': {
+        const name = args[1];
+        if (!name) {
+          return {
+            handled: true,
+            message: 'Usage: /hooks remove <name>',
+          };
+        }
+
+        const removed = await hookManager.removeHook(name);
+        if (removed) {
+          return {
+            handled: true,
+            message: `✓ Hook "${name}" removed`,
+          };
+        } else {
+          return {
+            handled: true,
+            error: `Hook "${name}" not found`,
+          };
+        }
+      }
+
+      case 'toggle': {
+        const name = args[1];
+        if (!name) {
+          return {
+            handled: true,
+            message: 'Usage: /hooks toggle <name>',
+          };
+        }
+
+        const hooks = await hookManager.getHooks();
+        const hook = hooks.find(h => h.name === name);
+
+        if (!hook) {
+          return {
+            handled: true,
+            error: `Hook "${name}" not found`,
+          };
+        }
+
+        await hookManager.toggleHook(name);
+        const newState = !hook.enabled;
+
+        return {
+          handled: true,
+          message: `✓ Hook "${name}" ${newState ? 'enabled' : 'disabled'}`,
+        };
+      }
+
+      default:
+        return {
+          handled: true,
+          message: `Unknown subcommand: ${subcommand}
+
+Usage: /hooks [list|add|remove|toggle]`,
+        };
+    }
+  },
+};
+
+/**
  * /doctor - Diagnose issues
  */
 const doctorCommand: SlashCommand = {
@@ -573,4 +769,5 @@ export function registerBuiltinCommands(): void {
   registerBuiltinCommand(newCommandCommand);
   registerBuiltinCommand(bugCommand);
   registerBuiltinCommand(doctorCommand);
+  registerBuiltinCommand(hooksCommand);
 }
