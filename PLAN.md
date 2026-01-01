@@ -9,7 +9,7 @@
 
 **Objectif**: Atteindre la parité fonctionnelle avec Claude Code d'Anthropic, en utilisant des modèles open source (Mistral/Devstral en priorité).
 
-**Parité actuelle estimée**: ~70% (après Phase 2 Tools Séparés)
+**Parité actuelle estimée**: ~75% (après Phase 3 Web Tools)
 
 ---
 
@@ -84,20 +84,20 @@ Claude Code utilise des tools séparés pour chaque opération. Horus combine ce
 
 ---
 
-### Phase 3: Web Tools 🔲 À FAIRE
+### Phase 3: Web Tools ✅ COMPLÉTÉ
 
-- [ ] **WebFetch Tool**
+- [x] **WebFetch Tool**
   - Fichier: `src/tools/web-fetch.ts`
-  - Fetch URL + extraction contenu avec AI
-  - Cache 15 minutes
-  - Conversion HTML → Markdown
-  - Dépendances: `axios`, `cheerio` ou `marked`
+  - Fetch URL + conversion HTML → Markdown
+  - Cache 15 minutes auto-cleaning
+  - Détection redirections cross-domain
+  - Dépendances: `cheerio`, `turndown`
 
-- [ ] **WebSearch Tool**
+- [x] **WebSearch Tool**
   - Fichier: `src/tools/web-search.ts`
-  - Recherche web via API (Brave, Tavily, ou scraping)
-  - Paramètres: `query`, `allowed_domains`, `blocked_domains`
-  - Retourne: résultats avec liens markdown
+  - Recherche web via SearXNG (extensible pour Brave/Tavily)
+  - Paramètres: `query`, `allowed_domains`, `blocked_domains`, `max_results`
+  - Retourne: résultats formatés en markdown
 
 ---
 

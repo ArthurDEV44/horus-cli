@@ -10,3 +10,7 @@ export { GlobTool } from "./glob.js";
 export { GrepTool } from "./grep.js";
 export { LsTool } from "./ls.js";
 export { MultiEditTool } from "./multi-edit.js";
+
+// Phase 3: Web Tools
+export { WebFetchTool } from "./web-fetch.js";
+export { WebSearchTool } from "./web-search.js";

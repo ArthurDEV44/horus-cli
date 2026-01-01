@@ -10,6 +10,8 @@ import {
   GrepTool,
   LsTool,
   MultiEditTool,
+  WebFetchTool,
+  WebSearchTool,
 } from "../../tools/index.js";
 import { getMCPManager } from "../../horus/tools.js";
 
@@ -31,7 +33,9 @@ export class ToolExecutor {
     private glob: GlobTool,
     private grep: GrepTool,
     private ls: LsTool,
-    private multiEdit: MultiEditTool
+    private multiEdit: MultiEditTool,
+    private webFetch: WebFetchTool,
+    private webSearch: WebSearchTool
   ) {}
 
   /**
@@ -144,6 +148,19 @@ export class ToolExecutor {
           return await this.todoTool.readTodoList({
             status: args.status,
             priority: args.priority,
+          });
+
+        // Phase 3: Web Tools
+        case "web_fetch":
+          return await this.webFetch.fetch(args.url, {
+            prompt: args.prompt,
+          });
+
+        case "web_search":
+          return await this.webSearch.search(args.query, {
+            allowedDomains: args.allowed_domains,
+            blockedDomains: args.blocked_domains,
+            maxResults: args.max_results,
           });
 
         default:

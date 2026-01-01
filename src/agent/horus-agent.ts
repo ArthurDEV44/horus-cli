@@ -15,6 +15,8 @@ import {
   GrepTool,
   LsTool,
   MultiEditTool,
+  WebFetchTool,
+  WebSearchTool,
 } from "../tools/index.js";
 import { ToolResult } from "../types/index.js";
 import { EventEmitter } from "events";
@@ -86,6 +88,8 @@ export class HorusAgent extends EventEmitter {
   private grep: GrepTool;
   private ls: LsTool;
   private multiEdit: MultiEditTool;
+  private webFetch: WebFetchTool;
+  private webSearch: WebSearchTool;
 
   constructor(
     apiKey: string,
@@ -113,6 +117,8 @@ export class HorusAgent extends EventEmitter {
     this.grep = new GrepTool();
     this.ls = new LsTool();
     this.multiEdit = new MultiEditTool();
+    this.webFetch = new WebFetchTool();
+    this.webSearch = new WebSearchTool();
 
     // Initialize modular components
     this.toolExecutor = new ToolExecutor(
@@ -124,7 +130,9 @@ export class HorusAgent extends EventEmitter {
       this.glob,
       this.grep,
       this.ls,
-      this.multiEdit
+      this.multiEdit,
+      this.webFetch,
+      this.webSearch
     );
     this.streamingManager = new StreamingManager(
       this.horusClient,

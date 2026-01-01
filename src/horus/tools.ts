@@ -459,6 +459,59 @@ const BASE_HORUS_TOOLS: HorusTool[] = [
       },
     },
   },
+  // Phase 3: Web Tools
+  {
+    type: "function",
+    function: {
+      name: "web_fetch",
+      description: "Fetch content from a URL and convert HTML to markdown. Includes 15-minute caching. HTTP URLs are automatically upgraded to HTTPS. Returns markdown content suitable for analysis.",
+      parameters: {
+        type: "object",
+        properties: {
+          url: {
+            type: "string",
+            description: "The URL to fetch content from (must be a valid URL)",
+          },
+          prompt: {
+            type: "string",
+            description: "Optional prompt describing what information to extract from the page",
+          },
+        },
+        required: ["url"],
+      },
+    },
+  },
+  {
+    type: "function",
+    function: {
+      name: "web_search",
+      description: "Search the web using SearXNG. Returns search results with titles, URLs, and snippets formatted as markdown.",
+      parameters: {
+        type: "object",
+        properties: {
+          query: {
+            type: "string",
+            description: "The search query",
+          },
+          allowed_domains: {
+            type: "array",
+            items: { type: "string" },
+            description: "Only include results from these domains",
+          },
+          blocked_domains: {
+            type: "array",
+            items: { type: "string" },
+            description: "Exclude results from these domains",
+          },
+          max_results: {
+            type: "number",
+            description: "Maximum number of results to return (default: 10)",
+          },
+        },
+        required: ["query"],
+      },
+    },
+  },
 ];
 
 // Morph Fast Apply tool (conditional)
