@@ -27,7 +27,7 @@ node dist/index.js
 
 ## Architecture Overview
 
-Horus CLI is a conversational AI agent for the terminal, built with TypeScript, React/Ink for the UI, and the OpenAI SDK (compatible with Ollama and other providers).
+Horus CLI is a conversational AI agent for the terminal, built with TypeScript, React/Ink for the UI, and the OpenAI SDK (compatible with vLLM and other OpenAI-compatible providers).
 
 ### Core Components
 
@@ -46,8 +46,9 @@ Horus CLI is a conversational AI agent for the terminal, built with TypeScript, 
   - `GatherPhase` / `VerifyPhase` (`src/agent/phases/`): Context gathering and verification
 
 **HorusClient** (`src/horus/client.ts`)
-- OpenAI SDK wrapper configured for Ollama by default (`http://localhost:11434/v1`)
+- OpenAI SDK wrapper configured for vLLM by default (`http://localhost:8000/v1`)
 - Supports streaming and non-streaming chat completions with tool calling
+- Optimized for Mistral AI models with `--tool-call-parser mistral`
 
 **Tools** (`src/tools/`)
 - `BashTool`: Shell command execution
