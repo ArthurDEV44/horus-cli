@@ -18,7 +18,7 @@ interface CacheEntry {
  * Includes 15-minute self-cleaning cache
  */
 export class WebFetchTool {
-  private cache: Map<string, CacheEntry> = new Map();
+  private cache = new Map<string, CacheEntry>();
   private readonly CACHE_TTL = 15 * 60 * 1000; // 15 minutes
   private turndown: TurndownService;
 

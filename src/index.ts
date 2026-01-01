@@ -20,7 +20,7 @@ dotenv.config();
 // We'll handle exit through the input system instead
 
 // Ensure stdin is properly configured for interactive use
-function ensureStdinReady(): void {
+function _ensureStdinReady(): void {
   if (!process.stdin.isTTY) {
     console.error("Error: This application requires an interactive terminal (TTY).");
     console.error("Please run this command in an interactive shell, not in a pipe or redirect.");
@@ -74,7 +74,7 @@ process.on("SIGTERM", () => {
   if (process.stdin.isTTY && process.stdin.setRawMode) {
     try {
       process.stdin.setRawMode(false);
-    } catch (e) {
+    } catch {
       // Ignore errors when setting raw mode
     }
   }
@@ -119,7 +119,7 @@ function ensureUserSettingsDirectory(): void {
     const manager = getSettingsManager();
     // This will create default settings if they don't exist
     manager.loadUserSettings();
-  } catch (error) {
+  } catch {
     // Silently ignore errors during setup
   }
 }
@@ -171,7 +171,7 @@ function loadModel(): string | undefined {
     try {
       const manager = getSettingsManager();
       model = manager.getCurrentModel();
-    } catch (error) {
+    } catch {
       // Ignore errors, model will remain undefined
     }
   }

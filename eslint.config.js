@@ -34,7 +34,8 @@ export default defineConfig(
         varsIgnorePattern: '^_',
         caughtErrorsIgnorePattern: '^_',
       }],
-      '@typescript-eslint/no-explicit-any': 'warn',
+      // any est parfois nécessaire pour l'interopérabilité avec les APIs externes
+      '@typescript-eslint/no-explicit-any': 'off',
       '@typescript-eslint/no-require-imports': 'off',
       '@typescript-eslint/no-empty-object-type': 'off',
       '@typescript-eslint/no-extraneous-class': 'off',

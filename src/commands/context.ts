@@ -139,7 +139,7 @@ export function createContextCommand(): Command {
       });
 
       const maxContext = getModelMaxContext(options.model);
-      const tokenCounter = createTokenCounter(options.model);
+      const _tokenCounter = createTokenCounter(options.model);
 
       const contextRequest: ContextRequest = {
         intent: orchestrator.detectIntent(query),

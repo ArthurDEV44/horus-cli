@@ -3,11 +3,9 @@ import { Box, Text } from "ink";
 import { getMCPManager } from "../../horus/tools.js";
 import { MCPTool } from "../../mcp/client.js";
 
-interface MCPStatusProps {}
-
-export function MCPStatus({}: MCPStatusProps) {
+export function MCPStatus() {
   const [connectedServers, setConnectedServers] = useState<string[]>([]);
-  const [availableTools, setAvailableTools] = useState<MCPTool[]>([]);
+  const [_availableTools, setAvailableTools] = useState<MCPTool[]>([]);
 
   useEffect(() => {
     const updateStatus = () => {
@@ -18,7 +16,7 @@ export function MCPStatus({}: MCPStatusProps) {
 
         setConnectedServers(servers);
         setAvailableTools(tools);
-      } catch (error) {
+      } catch (_error) {
         // MCP manager not initialized yet
         setConnectedServers([]);
         setAvailableTools([]);

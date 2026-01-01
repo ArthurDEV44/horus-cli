@@ -185,7 +185,7 @@ export class SearchTool {
           wholeWord ? `\\b${query}\\b` : query,
           caseSensitive ? "g" : "gi"
         );
-      } catch (e) {
+      } catch {
         // Invalid regex, fallback to literal string
         searchPattern = caseSensitive ? query : query.toLowerCase();
       }
@@ -212,7 +212,7 @@ export class SearchTool {
       ".nyc_output",
     ];
 
-    const walkAndSearch = async (dir: string, depth: number = 0): Promise<void> => {
+    const walkAndSearch = async (dir: string, depth = 0): Promise<void> => {
       if (depth > 20 || results.length >= maxResults) return;
 
       try {
@@ -277,7 +277,7 @@ export class SearchTool {
                 if (results.length >= maxResults) break;
 
                 const line = lines[lineNum];
-                let matches: Array<{ index: number; length: number; [0]: string }> = [];
+                let matches: { index: number; length: number; [0]: string }[] = [];
 
                 if (useRegex && searchPattern instanceof RegExp) {
                   const lineMatches = Array.from(line.matchAll(searchPattern)) as RegExpMatchArray[];
@@ -331,7 +331,7 @@ export class SearchTool {
 
               // Limit results per file
               if (foundMatches && results.length >= maxResults) break;
-            } catch (error) {
+            } catch {
               // Skip files we can't read
               continue;
             }
@@ -339,7 +339,7 @@ export class SearchTool {
             await walkAndSearch(fullPath, depth + 1);
           }
         }
-      } catch (error) {
+      } catch {
         // Skip directories we can't read
       }
     };
@@ -381,7 +381,7 @@ export class SearchTool {
     const maxResults = options.maxResults || 50;
     const searchPattern = pattern.toLowerCase();
 
-    const walkDir = async (dir: string, depth: number = 0): Promise<void> => {
+    const walkDir = async (dir: string, depth = 0): Promise<void> => {
       // Increase depth limit to 20 to search in deeply nested directories like .github/workflows/
       if (depth > 20 || files.length >= maxResults) return; // Prevent infinite recursion and limit results
 
@@ -450,7 +450,7 @@ export class SearchTool {
             await walkDir(fullPath, depth + 1);
           }
         }
-      } catch (error) {
+      } catch {
         // Skip directories we can't read
       }
     };
@@ -533,7 +533,7 @@ export class SearchTool {
   private formatUnifiedResults(
     results: UnifiedSearchResult[],
     query: string,
-    searchType: string
+    _searchType: string
   ): string {
     if (results.length === 0) {
       return `No results found for "${query}"`;

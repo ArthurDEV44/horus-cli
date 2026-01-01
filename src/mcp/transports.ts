@@ -1,6 +1,6 @@
 import { Transport } from "@modelcontextprotocol/sdk/shared/transport.js";
 import { StdioClientTransport } from "@modelcontextprotocol/sdk/client/stdio.js";
-import { ChildProcess, spawn } from "child_process";
+import { ChildProcess } from "child_process";
 import { EventEmitter } from "events";
 import axios, { AxiosInstance } from "axios";
 
@@ -43,8 +43,11 @@ export class StdioTransport implements MCPTransport {
       NODE_ENV: 'production'
     };
 
+    if (!this.config.command) {
+      throw new Error('Command is required for stdio transport');
+    }
     this.transport = new StdioClientTransport({
-      command: this.config.command!,
+      command: this.config.command,
       args: this.config.args || [],
       env
     });
@@ -93,7 +96,7 @@ export class HttpTransport extends EventEmitter implements MCPTransport {
     try {
       await this.client.get('/health');
       this.connected = true;
-    } catch (error) {
+    } catch (_error) {
       // If health endpoint doesn't exist, try a basic request
       this.connected = true;
     }
@@ -126,8 +129,12 @@ export class SSETransport extends EventEmitter implements MCPTransport {
       try {
         // For Node.js environment, we'll use a simple HTTP-based approach
         // In a real implementation, you'd use a proper SSE library like 'eventsource'
+        if (!this.config.url) {
+          reject(new Error('URL is required for SSE transport'));
+          return;
+        }
         this.connected = true;
-        resolve(new SSEClientTransport(this.config.url!));
+        resolve(new SSEClientTransport(this.config.url));
       } catch (error) {
         reject(error);
       }
@@ -208,8 +215,12 @@ export class StreamableHttpTransport extends EventEmitter implements MCPTranspor
   async connect(): Promise<Transport> {
     return new Promise((resolve, reject) => {
       try {
+        if (!this.config.url) {
+          reject(new Error('URL is required for streamable_http transport'));
+          return;
+        }
         this.connected = true;
-        resolve(new StreamableHttpClientTransport(this.config.url!, this.config.headers));
+        resolve(new StreamableHttpClientTransport(this.config.url, this.config.headers));
       } catch (error) {
         reject(error);
       }

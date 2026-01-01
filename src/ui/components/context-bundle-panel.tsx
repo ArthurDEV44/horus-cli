@@ -1,6 +1,6 @@
 import React from "react";
 import { Box, Text } from "ink";
-import type { ContextBundle, ContextMetadata } from "../../types/context.js";
+import type { ContextBundle } from "../../types/context.js";
 
 interface ContextBundlePanelProps {
   bundle: ContextBundle;

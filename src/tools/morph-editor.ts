@@ -7,7 +7,7 @@ import { ConfirmationService } from "../utils/confirmation-service.js";
 export class MorphEditorTool {
   private confirmationService = ConfirmationService.getInstance();
   private morphApiKey: string;
-  private morphBaseUrl: string = "https://api.morphllm.com/v1";
+  private morphBaseUrl = "https://api.morphllm.com/v1";
 
   constructor(apiKey?: string) {
     this.morphApiKey = apiKey || process.env.MORPH_API_KEY || "";
@@ -149,12 +149,12 @@ export class MorphEditorTool {
   ): string {
     const CONTEXT_LINES = 3;
     
-    const changes: Array<{
+    const changes: {
       oldStart: number;
       oldEnd: number;
       newStart: number;
       newEnd: number;
-    }> = [];
+    }[] = [];
     
     let i = 0, j = 0;
     
@@ -208,21 +208,20 @@ export class MorphEditorTool {
       }
     }
     
-    const hunks: Array<{
+    const hunks: {
       oldStart: number;
       oldCount: number;
       newStart: number;
       newCount: number;
-      lines: Array<{ type: '+' | '-' | ' '; content: string }>;
-    }> = [];
+      lines: { type: '+' | '-' | ' '; content: string }[];
+    }[] = [];
     
     let accumulatedOffset = 0;
     
-    for (let changeIdx = 0; changeIdx < changes.length; changeIdx++) {
-      const change = changes[changeIdx];
+    for (const change of changes) {
       
-      let contextStart = Math.max(0, change.oldStart - CONTEXT_LINES);
-      let contextEnd = Math.min(oldLines.length, change.oldEnd + CONTEXT_LINES);
+      const contextStart = Math.max(0, change.oldStart - CONTEXT_LINES);
+      const contextEnd = Math.min(oldLines.length, change.oldEnd + CONTEXT_LINES);
       
       if (hunks.length > 0) {
         const lastHunk = hunks[hunks.length - 1];

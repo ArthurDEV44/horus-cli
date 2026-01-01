@@ -38,9 +38,6 @@ export class ConfirmationService extends EventEmitter {
     return ConfirmationService.instance;
   }
 
-  constructor() {
-    super();
-  }
 
   async requestConfirmation(
     options: ConfirmationOptions,
@@ -59,7 +56,7 @@ export class ConfirmationService extends EventEmitter {
     if (options.showVSCodeOpen) {
       try {
         await this.openInVSCode(options.filename);
-      } catch (error) {
+      } catch (_error) {
         // If VS Code opening fails, continue without it
         options.showVSCodeOpen = false;
       }
@@ -115,7 +112,7 @@ export class ConfirmationService extends EventEmitter {
         await execAsync(`which ${cmd}`);
         await execAsync(`${cmd} "${filename}"`);
         return;
-      } catch (error) {
+      } catch (_error) {
         // Continue to next command
         continue;
       }

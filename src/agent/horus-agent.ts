@@ -434,7 +434,7 @@ export class HorusAgent extends EventEmitter {
     this.messages.push({ role: "user", content: message });
 
     // Calculate input tokens
-    let inputTokens = this.tokenCounter.countMessageTokens(
+    const inputTokens = this.tokenCounter.countMessageTokens(
       this.messages as any
     );
     yield {

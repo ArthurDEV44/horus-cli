@@ -29,19 +29,19 @@ export interface HorusToolCall {
 // SearchParameters and SearchOptions removed - not used with Ollama
 
 export interface HorusResponse {
-  choices: Array<{
+  choices: {
     message: {
       role: string;
       content: string | null;
       tool_calls?: HorusToolCall[];
     };
     finish_reason: string;
-  }>;
+  }[];
 }
 
 export class HorusClient {
   private client: OpenAI;
-  private currentModel: string = "devstral:24b";
+  private currentModel = "devstral:24b";
 
   constructor(apiKey: string, model?: string, baseURL?: string) {
     // Ollama accepts any API key value, but we use empty string if not provided

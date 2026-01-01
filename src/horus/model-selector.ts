@@ -11,8 +11,7 @@
  * @module model-selector
  */
 
-import { detectAvailableVRAM, getSystemInfo, type SystemInfo } from '../utils/system-info.js';
-import { getModelMaxContext } from './model-configs.js';
+import { detectAvailableVRAM } from '../utils/system-info.js';
 
 /**
  * Model profile for different use cases
@@ -226,7 +225,7 @@ export function selectModelByProfile(
   if (availableVRAM < model.vramMin) {
     // Fallback to models ordered by VRAM (descending), not by profile name
     // This ensures we try the best model that fits available VRAM
-    const vramOrderedModels: Array<{ model: keyof typeof MISTRAL_MODELS; profile: ModelProfile }> = [
+    const vramOrderedModels: { model: keyof typeof MISTRAL_MODELS; profile: ModelProfile }[] = [
       { model: 'devstral:24b', profile: 'deep' },      // 32GB
       { model: 'mixtral', profile: 'powerful' },       // 24GB
       { model: 'mistral-small', profile: 'balanced' }, // 12GB
@@ -272,7 +271,7 @@ export function selectModelByProfile(
  * @returns ModelRecommendation
  */
 export async function getRecommendedModel(
-  contextSize: number = 16384
+  contextSize = 16384
 ): Promise<ModelRecommendation> {
   const vram = await detectAvailableVRAM();
   return selectOptimalModel(contextSize, vram);

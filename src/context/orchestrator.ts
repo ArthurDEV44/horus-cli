@@ -16,10 +16,9 @@ import type {
 import { ContextCache, getContextCache } from './cache.js';
 import { SearchTool } from '../tools/search.js';
 import { SearchToolV2, type SearchOptions, type ScoreStrategy } from '../tools/search-v2.js';
-import { SnippetBuilder, type SnippetOptions } from './snippet-builder.js';
-import { SubagentManager, detectParallelizableTask, type SubtaskRequest, type SubagentResult } from './subagent-manager.js';
+import { SnippetBuilder } from './snippet-builder.js';
+import { SubagentManager, detectParallelizableTask, type SubtaskRequest } from './subagent-manager.js';
 import { createTokenCounter } from '../utils/token-counter.js';
-import type { ToolResult } from '../types/index.js';
 import path from 'path';
 import fs from 'fs-extra';
 
@@ -117,11 +116,12 @@ export class ContextOrchestrator {
     }
 
     // Phase 2: Use enhanced search (SearchToolV2) - now native integration
-    let sources: ContextSource[];
+    const sources: ContextSource[] = [];
     if (this.debug) {
       console.error('[ContextOrchestrator] Using enhanced search (SearchToolV2, native integration)');
     }
-    sources = await this.enhancedSearch(request.query, request.intent, this.config.maxSources);
+    const foundSources = await this.enhancedSearch(request.query, request.intent, this.config.maxSources);
+    sources.push(...foundSources);
 
     // Build and return context bundle
     const bundle: ContextBundle = {

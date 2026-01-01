@@ -194,7 +194,7 @@ export class LsTool {
   /**
    * Get file entry info
    */
-  private async getFileEntry(fullPath: string, baseDir: string): Promise<FileEntry> {
+  private async getFileEntry(fullPath: string, _baseDir: string): Promise<FileEntry> {
     const stats = await fs.lstat(fullPath);
     const name = path.basename(fullPath);
 
@@ -278,7 +278,7 @@ export class LsTool {
   /**
    * Format long listing output
    */
-  private formatLongListing(entries: FileEntry[], baseDir: string): string {
+  private formatLongListing(entries: FileEntry[], _baseDir: string): string {
     const lines = entries.map((entry) => this.formatLongEntry(entry));
     const totalSize = entries.reduce((sum, e) => sum + e.size, 0);
     return `total ${this.formatSize(totalSize)}\n${lines.join("\n")}`;
@@ -307,7 +307,10 @@ export class LsTool {
       if (!grouped.has(key)) {
         grouped.set(key, []);
       }
-      grouped.get(key)!.push(entry);
+      const entries = grouped.get(key);
+      if (entries) {
+        entries.push(entry);
+      }
     }
 
     const lines: string[] = [];

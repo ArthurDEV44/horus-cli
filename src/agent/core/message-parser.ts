@@ -58,7 +58,7 @@ export class MessageParser {
               : JSON.stringify(item.arguments),
         },
       }));
-    } catch (error) {
+    } catch {
       // Not valid JSON or not a tool call format
       return null;
     }

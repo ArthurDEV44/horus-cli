@@ -6,7 +6,6 @@ import React from 'react';
 import { Box, Text } from 'ink';
 import { Colors } from '../utils/colors.js';
 import crypto from 'crypto';
-import { colorizeCode } from '../utils/code-colorizer.js';
 import { MaxSizedBox } from '../shared/max-sized-box.js';
 
 interface DiffLine {
@@ -258,8 +257,8 @@ const renderDiffContent = (
 };
 
 
-const getLanguageFromExtension = (extension: string): string | null => {
-  const languageMap: { [key: string]: string } = {
+const _getLanguageFromExtension = (extension: string): string | null => {
+  const languageMap: Record<string, string> = {
     js: 'javascript',
     ts: 'typescript',
     py: 'python',

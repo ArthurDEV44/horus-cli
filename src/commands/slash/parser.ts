@@ -5,7 +5,7 @@
  * and handles $ARGUMENTS substitution.
  */
 
-import type { CommandFrontmatter, LoadedCustomCommand } from './types.js';
+import type { CommandFrontmatter } from './types.js';
 
 /**
  * Parse YAML-like frontmatter from markdown content

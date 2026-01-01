@@ -40,7 +40,7 @@ export class StreamingManager {
   async *streamResponse(
     messages: HorusMessage[],
     tools: any[],
-    onToolCall: (toolCall: HorusToolCall) => Promise<ToolResult>
+    _onToolCall: (toolCall: HorusToolCall) => Promise<ToolResult>
   ): AsyncGenerator<StreamingChunk, void, unknown> {
     // Create new abort controller for this request
     this.abortController = new AbortController();
@@ -142,7 +142,6 @@ export class StreamingManager {
 
       // Fallback: Check if content contains raw JSON tool calls
       let finalToolCalls = accumulatedMessage.tool_calls;
-      let finalContent = accumulatedMessage.content;
 
       if (!finalToolCalls && accumulatedMessage.content) {
         const parsedToolCalls = this.parser.parseRawToolCalls(
@@ -150,7 +149,7 @@ export class StreamingManager {
         );
         if (parsedToolCalls) {
           finalToolCalls = parsedToolCalls;
-          finalContent = "";
+          // Content cleared when tool calls are parsed
         }
       }
 

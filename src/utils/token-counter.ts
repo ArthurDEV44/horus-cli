@@ -3,10 +3,10 @@ import { get_encoding, encoding_for_model, Tiktoken } from 'tiktoken';
 export class TokenCounter {
   private encoder: Tiktoken;
 
-  constructor(model: string = 'gpt-4') {
+  constructor(model = 'gpt-4') {
     try {
       // Try to get encoding for specific model
-      this.encoder = encoding_for_model(model as any);
+      this.encoder = encoding_for_model(model as Parameters<typeof encoding_for_model>[0]);
     } catch {
       // Fallback to cl100k_base (used by GPT-4 and most modern models)
       this.encoder = get_encoding('cl100k_base');
@@ -24,7 +24,7 @@ export class TokenCounter {
   /**
    * Count tokens in messages array (for chat completions)
    */
-  countMessageTokens(messages: Array<{ role: string; content: string | null; [key: string]: any }>): number {
+  countMessageTokens(messages: { role: string; content: string | null; tool_calls?: unknown }[]): number {
     let totalTokens = 0;
     
     for (const message of messages) {

@@ -116,7 +116,7 @@ function ModernChatInterfaceWithAgent({
       }
 
       console.log(' '); // Spacing after logo
-    } catch (error) {
+    } catch {
       console.log('   HORUS'); // Fallback if cfonts fails
       console.log(' ');
     }

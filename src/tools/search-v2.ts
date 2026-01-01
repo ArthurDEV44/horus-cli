@@ -164,7 +164,7 @@ export class SearchToolV2 {
     const allExclude = [...ignore, ...excludePatterns];
 
     // Recursively find all files matching patterns
-    const allFiles: Set<string> = new Set();
+    const allFiles = new Set<string>();
 
     // Walk directory tree
     const files = await this.walkDirectory(this.cwd, allExclude);
@@ -191,7 +191,7 @@ export class SearchToolV2 {
   ): Promise<string[]> {
     const files: string[] = [];
 
-    const walk = (currentDir: string, relativePath: string = '') => {
+    const walk = (currentDir: string, relativePath = '') => {
       try {
         const entries = fs.readdirSync(currentDir, { withFileTypes: true });
 
@@ -213,7 +213,7 @@ export class SearchToolV2 {
             files.push(relPath);
           }
         }
-      } catch (error) {
+      } catch {
         // Ignore errors (permission denied, etc.)
       }
     };
@@ -314,7 +314,7 @@ export class SearchToolV2 {
           };
         })
         .sort((a, b) => b.score - a.score);
-    } catch (error) {
+    } catch {
       // Git not available or not a git repo
       return files.map((f) => ({ path: f, score: 1, reasons: [] }));
     }
@@ -371,7 +371,7 @@ export class SearchToolV2 {
           }
 
           return { path: filePath, score, reasons };
-        } catch (error) {
+        } catch {
           // File not readable
           return { path: filePath, score: 1, reasons: [] };
         }
@@ -478,7 +478,7 @@ export class SearchToolV2 {
           snippet,
           tokens,
         };
-      } catch (error) {
+      } catch {
         return {
           ...file,
           snippet: '(unable to read file)',

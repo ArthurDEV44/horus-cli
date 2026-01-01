@@ -1,7 +1,5 @@
 import {
   VerificationPipeline,
-  ToolResult as VerificationToolResult,
-  VerificationResult,
 } from "../../context/verification.js";
 import { HorusToolCall } from "../../horus/client.js";
 import { ToolResult } from "../../types/index.js";

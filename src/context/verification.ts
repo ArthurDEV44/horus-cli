@@ -288,7 +288,7 @@ export class VerificationPipeline {
     const startTime = Date.now();
 
     try {
-      const { stdout, stderr } = await execAsync(
+      await execAsync(
         `npx tsc --noEmit "${filePath}"`,
         {
           timeout: this.config.typesTimeout,
@@ -300,8 +300,9 @@ export class VerificationPipeline {
         errors: [],
         duration: Date.now() - startTime,
       };
-    } catch (error: any) {
-      const errors = this.parseTypeErrors(error.stdout || error.stderr || '');
+    } catch (error: unknown) {
+      const execError = error as { stdout?: string; stderr?: string };
+      const errors = this.parseTypeErrors(execError.stdout || execError.stderr || '');
 
       return {
         passed: false,
@@ -345,7 +346,7 @@ export class VerificationPipeline {
 
     let match;
     while ((match = lineRegex.exec(output)) !== null) {
-      const [, file, line, col, code, message] = match;
+      const [, _file, line, col, code, message] = match;
       errors.push(`Line ${line}:${col} - ${code}: ${message}`);
     }
 

@@ -17,9 +17,12 @@ export class PlanningModeService {
 
   private _mode: OperationMode = 'normal';
   private _planFile: string | null = null;
-  private listeners: Set<(state: PlanningModeState) => void> = new Set();
+  private listeners = new Set<(state: PlanningModeState) => void>();
 
-  private constructor() {}
+  // Private constructor for singleton pattern
+  private constructor() {
+    // Intentionally empty
+  }
 
   static getInstance(): PlanningModeService {
     if (!PlanningModeService.instance) {

@@ -4,7 +4,6 @@ import { Agent } from '../agent/index.js';
 import { ToolResult } from '../types/index.js';
 import { ConfirmationService, ConfirmationOptions } from '../utils/confirmation-service.js';
 import ConfirmationDialog from './components/confirmation-dialog.js';
-import chalk from 'chalk';
 
 interface Props {
   agent: Agent;
@@ -12,7 +11,7 @@ interface Props {
 
 export default function App({ agent }: Props) {
   const [input, setInput] = useState('');
-  const [history, setHistory] = useState<Array<{ command: string; result: ToolResult }>>([]);
+  const [history, setHistory] = useState<{ command: string; result: ToolResult }[]>([]);
   const [isProcessing, setIsProcessing] = useState(false);
   const [confirmationOptions, setConfirmationOptions] = useState<ConfirmationOptions | null>(null);
   // Removed useApp().exit - using process.exit(0) instead for better terminal handling

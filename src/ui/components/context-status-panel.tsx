@@ -1,6 +1,6 @@
 import React from "react";
 import { Box, Text } from "ink";
-import { ContextTelemetry, TelemetrySnapshot } from "../../utils/context-telemetry.js";
+import { ContextTelemetry } from "../../utils/context-telemetry.js";
 
 interface ContextStatusPanelProps {
   lastN?: number;

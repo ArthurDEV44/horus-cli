@@ -15,7 +15,7 @@ export function ChatInput({
   isStreaming,
 }: ChatInputProps) {
   const beforeCursor = input.slice(0, cursorPosition);
-  const afterCursor = input.slice(cursorPosition);
+  const _afterCursor = input.slice(cursorPosition);
 
   // Handle multiline input display
   const lines = input.split("\n");

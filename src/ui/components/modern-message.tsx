@@ -15,7 +15,7 @@ interface ModernMessageProps {
  */
 export const ModernMessage: React.FC<ModernMessageProps> = ({
   entry,
-  isLast = false,
+  isLast: _isLast = false,
 }) => {
   // User message
   if (entry.type === 'user') {

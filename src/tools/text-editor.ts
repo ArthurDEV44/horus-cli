@@ -218,7 +218,7 @@ export class TextEditorTool {
     filePath: string,
     oldStr: string,
     newStr: string,
-    replaceAll: boolean = false
+    replaceAll = false
   ): Promise<ToolResult> {
     const startTime = Date.now();
     const tokenCounter = createTokenCounter();
@@ -748,7 +748,13 @@ export class TextEditorTool {
       };
     }
 
-    const lastEdit = this.editHistory.pop()!;
+    const lastEdit = this.editHistory.pop();
+    if (!lastEdit) {
+      return {
+        success: false,
+        error: "No edits to undo",
+      };
+    }
 
     try {
       switch (lastEdit.command) {
@@ -871,12 +877,12 @@ export class TextEditorTool {
   ): string {
     const CONTEXT_LINES = 3;
     
-    const changes: Array<{
+    const changes: {
       oldStart: number;
       oldEnd: number;
       newStart: number;
       newEnd: number;
-    }> = [];
+    }[] = [];
     
     let i = 0, j = 0;
     
@@ -930,21 +936,20 @@ export class TextEditorTool {
       }
     }
     
-    const hunks: Array<{
+    const hunks: {
       oldStart: number;
       oldCount: number;
       newStart: number;
       newCount: number;
-      lines: Array<{ type: '+' | '-' | ' '; content: string }>;
-    }> = [];
+      lines: { type: '+' | '-' | ' '; content: string }[];
+    }[] = [];
     
     let accumulatedOffset = 0;
     
-    for (let changeIdx = 0; changeIdx < changes.length; changeIdx++) {
-      const change = changes[changeIdx];
+    for (const change of changes) {
       
-      let contextStart = Math.max(0, change.oldStart - CONTEXT_LINES);
-      let contextEnd = Math.min(oldLines.length, change.oldEnd + CONTEXT_LINES);
+      const contextStart = Math.max(0, change.oldStart - CONTEXT_LINES);
+      const contextEnd = Math.min(oldLines.length, change.oldEnd + CONTEXT_LINES);
       
       if (hunks.length > 0) {
         const lastHunk = hunks[hunks.length - 1];

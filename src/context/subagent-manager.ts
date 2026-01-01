@@ -156,7 +156,7 @@ IMPORTANT:
         // Collecter les événements du subagent
         const toolsUsed = new Set<string>();
         const filesModified = new Set<string>();
-        let tokensUsed = 0;
+        const tokensUsed = 0;
 
         subagent.on('tool_call', (toolCall) => {
           toolsUsed.add(toolCall.name);

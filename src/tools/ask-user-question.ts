@@ -83,7 +83,7 @@ export class AskUserQuestionTool {
 
       // Format questions for display
       const formattedQuestions = options.questions
-        .map((q, i) => {
+        .map((q) => {
           const optionsStr = q.options
             .map((opt, j) => `  ${j + 1}. ${opt.label}: ${opt.description}`)
             .join('\n');

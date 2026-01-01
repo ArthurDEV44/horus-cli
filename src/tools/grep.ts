@@ -29,7 +29,8 @@ interface GrepMatch {
   contextAfter?: string[];
 }
 
-interface FileCount {
+// FileCount interface available if needed for future features
+interface _FileCount {
   file: string;
   count: number;
 }
@@ -208,7 +209,7 @@ export class GrepTool {
     contextBefore: number,
     contextAfter: number,
     multiline: boolean,
-    depth: number = 0
+    depth = 0
   ): Promise<GrepMatch[]> {
     const results: GrepMatch[] = [];
     const MAX_DEPTH = 30;
@@ -416,7 +417,7 @@ export class GrepTool {
     }
 
     // Convert to regex
-    let regexPattern = normalizedPattern
+    const regexPattern = normalizedPattern
       .replace(/[.+^${}()|[\]\\]/g, "\\$&")
       .replace(/\*\*\//g, "(?:.*\\/)?")
       .replace(/\*\*/g, ".*")

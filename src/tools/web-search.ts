@@ -53,7 +53,7 @@ interface BraveSearchResponse {
   };
   mixed?: {
     type: string;
-    main: Array<{ type: string; index: number }>;
+    main: { type: string; index: number }[];
   };
 }
 
@@ -157,22 +157,24 @@ export class WebSearchTool {
       }
 
       // Apply domain filters
-      if (options.allowedDomains && options.allowedDomains.length > 0) {
+      const allowedDomains = options.allowedDomains;
+      if (allowedDomains && allowedDomains.length > 0) {
         results = results.filter((r) => {
           try {
             const domain = new URL(r.url).hostname;
-            return options.allowedDomains!.some((d) => domain.includes(d));
+            return allowedDomains.some((d) => domain.includes(d));
           } catch {
             return false;
           }
         });
       }
 
-      if (options.blockedDomains && options.blockedDomains.length > 0) {
+      const blockedDomains = options.blockedDomains;
+      if (blockedDomains && blockedDomains.length > 0) {
         results = results.filter((r) => {
           try {
             const domain = new URL(r.url).hostname;
-            return !options.blockedDomains!.some((d) => domain.includes(d));
+            return !blockedDomains.some((d) => domain.includes(d));
           } catch {
             return true;
           }
@@ -256,11 +258,14 @@ export class WebSearchTool {
     searchUrl.searchParams.set("text_decorations", "false");
     searchUrl.searchParams.set("search_lang", "en");
 
+    if (!this.braveApiKey) {
+      throw new Error("Brave API key not configured");
+    }
     const response = await fetch(searchUrl.toString(), {
       headers: {
         "Accept": "application/json",
         "Accept-Encoding": "gzip",
-        "X-Subscription-Token": this.braveApiKey!,
+        "X-Subscription-Token": this.braveApiKey,
       },
     });
 

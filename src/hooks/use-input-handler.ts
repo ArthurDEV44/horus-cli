@@ -16,7 +16,6 @@ import {
   getSlashCommandSuggestions,
   isSlashCommandInput,
   type CommandContext,
-  type CommandSuggestion,
 } from "../commands/slash/index.js";
 
 interface UseInputHandlerProps {
@@ -238,7 +237,7 @@ export function useInputHandler({
     setInput,
     setCursorPosition,
     clearInput,
-    resetHistory,
+    resetHistory: _resetHistory,
     handleInput,
   } = useEnhancedInput({
     onSubmit: handleInputSubmit,

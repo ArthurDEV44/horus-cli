@@ -20,9 +20,9 @@ export interface MCPTool {
 }
 
 export class MCPManager extends EventEmitter {
-  private clients: Map<string, Client> = new Map();
-  private transports: Map<string, MCPTransport> = new Map();
-  private tools: Map<string, MCPTool> = new Map();
+  private clients = new Map<string, Client>();
+  private transports = new Map<string, MCPTransport>();
+  private tools = new Map<string, MCPTool>();
 
   async addServer(config: MCPServerConfig): Promise<void> {
     try {

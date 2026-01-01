@@ -18,7 +18,7 @@ interface ModernHeaderProps {
  */
 export const ModernHeader: React.FC<ModernHeaderProps> = ({
   model,
-  autoEditEnabled,
+  autoEditEnabled: _autoEditEnabled,
   mcpServersCount = 0,
   isProcessing = false,
   operationMode = 'normal',

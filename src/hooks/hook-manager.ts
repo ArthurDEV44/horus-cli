@@ -77,7 +77,7 @@ export class HookManager {
         const config: HooksConfigFile = JSON.parse(content);
         return config.hooks || [];
       }
-    } catch (error) {
+    } catch {
       // Ignore parse errors, return empty
       console.error(`Warning: Failed to load hooks from ${filePath}`);
     }
@@ -90,7 +90,7 @@ export class HookManager {
   async saveHooks(): Promise<void> {
     const config: HooksConfigFile = {
       version: 1,
-      hooks: this.hooks.filter(h => {
+      hooks: this.hooks.filter(() => {
         // Only save project hooks (not user hooks)
         // For now, save all hooks to project
         return true;

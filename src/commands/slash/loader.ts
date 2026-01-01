@@ -9,7 +9,7 @@
 import fs from 'fs-extra';
 import path from 'path';
 import os from 'os';
-import type { LoadedCustomCommand, CommandScope } from './types.js';
+import type { LoadedCustomCommand } from './types.js';
 import { parseFrontmatter, extractCommandName, isValidCommandName } from './parser.js';
 
 /**

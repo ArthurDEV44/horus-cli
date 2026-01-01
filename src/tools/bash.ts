@@ -234,7 +234,7 @@ export class BashTool {
     return command;
   }
 
-  async execute(command: string, timeout: number = 30000): Promise<ToolResult> {
+  async execute(command: string, timeout = 30000): Promise<ToolResult> {
     try {
       // Check if user has already accepted bash commands for this session
       const sessionFlags = this.confirmationService.getSessionFlags();
@@ -341,21 +341,21 @@ export class BashTool {
     return this.currentDirectory;
   }
 
-  async listFiles(directory: string = '.'): Promise<ToolResult> {
+  async listFiles(directory = '.'): Promise<ToolResult> {
     if (this.platformDetector.isWindowsPlatform()) {
       return this.execute(`Get-ChildItem -Force -Path "${directory}" | Format-Table -AutoSize`);
     }
     return this.execute(`ls -la ${directory}`);
   }
 
-  async findFiles(pattern: string, directory: string = '.'): Promise<ToolResult> {
+  async findFiles(pattern: string, directory = '.'): Promise<ToolResult> {
     if (this.platformDetector.isWindowsPlatform()) {
       return this.execute(`Get-ChildItem -Path "${directory}" -Recurse -Filter "${pattern}" -File | Select-Object -ExpandProperty FullName`);
     }
     return this.execute(`find ${directory} -name "${pattern}" -type f`);
   }
 
-  async grep(pattern: string, files: string = '.'): Promise<ToolResult> {
+  async grep(pattern: string, files = '.'): Promise<ToolResult> {
     if (this.platformDetector.isWindowsPlatform()) {
       return this.execute(`Select-String -Path "${files}\\*" -Pattern "${pattern}" -Recurse | Format-List`);
     }

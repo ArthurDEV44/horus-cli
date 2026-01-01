@@ -98,7 +98,7 @@ export class GlobTool {
     dir: string,
     pattern: string,
     ignorePatterns: string[],
-    depth: number = 0
+    depth = 0
   ): Promise<FileInfo[]> {
     const results: FileInfo[] = [];
     const MAX_DEPTH = 30;
